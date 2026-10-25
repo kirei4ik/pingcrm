@@ -1,0 +1,128 @@
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://pingcrm:${POSTGRES_PASSWORD:?required}@postgres:5432/pingcrm
+  REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
+  SECRET_KEY: ${SECRET_KEY:?required}
+  ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
+  ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI:-}
+  TELEGRAM_API_ID: ${TELEGRAM_API_ID:-}
+  TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pingcrm
+      POSTGRES_USER: pingcrm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pingcrm -d pingcrm"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD:?required}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?required}
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ghcr.io/sneg55/pingcrm/backend:latest
+    restart: unless-stopped
+    environment: *backend-env
+    volumes:
+      - avatars:/app/static/avatars
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')\""
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  worker:
+    image: ghcr.io/sneg55/pingcrm/backend:latest
+    restart: unless-stopped
+    command: celery -A worker.celery_app worker --beat --loglevel=info
+    environment: *backend-env
+    volumes:
+      - avatars:/app/static/avatars
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PINGCRM_URL:?required}/api
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${PINGCRM_URL:?required}/api
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    configs:
+      - source: gateway_caddyfile
+        target: /etc/caddy/Caddyfile
+    depends_on:
+      - frontend
+      - backend
+    expose:
+      - "80"
+
+configs:
+  gateway_caddyfile:
+    content: |
+      :80 {
+        handle /api/* {
+          reverse_proxy backend:8000
+        }
+        handle /mcp/* {
+          reverse_proxy backend:8000 {
+            flush_interval -1
+          }
+        }
+        handle /ws/* {
+          reverse_proxy backend:8000
+        }
+        handle /static/* {
+          reverse_proxy backend:8000
+        }
+        handle {
+          reverse_proxy frontend:3000
+        }
+      }
+
+volumes:
+  pgdata:
+  avatars:
