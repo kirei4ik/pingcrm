@@ -2,6 +2,7 @@
 x-backend-env: &backend-env
   DATABASE_URL: postgresql+asyncpg://pingcrm:${POSTGRES_PASSWORD:?required}@postgres:5432/pingcrm
   REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
+  FRONTEND_URL: ${PINGCRM_URL:?required}
   SECRET_KEY: ${SECRET_KEY:?required}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
