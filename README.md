@@ -50,7 +50,7 @@ See the [feature docs](https://docs.pingcrm.xyz/features/dashboard) for screensh
 | **Render** | [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/sneg55/pingcrm) |
 | **DigitalOcean** | [![Deploy to DO](https://www.deploytodo.com/do-btn-blue.svg)](https://cloud.digitalocean.com/apps/new?repo=https://github.com/sneg55/pingcrm/tree/main) |
 | **Fly.io** | `fly launch --from https://github.com/sneg55/pingcrm` |
-| **Coolify** (self-hosted) | [Import as Docker Compose app](https://coolify.io/docs/applications/) |
+| **Coolify** (self-hosted) | [Deploy this fork using prebuilt GHCR images](COOLIFY.md) |
 
 After deploy, set `ANTHROPIC_API_KEY` and any OAuth credentials for integrations you want. [Environment reference →](https://docs.pingcrm.xyz/setup#environment-variables)
 
