@@ -103,6 +103,19 @@ Coolify Compose и этим workflow не собирается.
    worker и прокси Coolify. Backend выполняет миграции перед запуском API;
    worker ожидает успешной проверки здоровья backend.
 
+## Первый аккаунт
+
+Регистрация по умолчанию закрыта (`ALLOW_REGISTRATION=false`).
+Для первой установки:
+
+1. После загрузки обновлённого Compose задайте в Coolify
+   `ALLOW_REGISTRATION=true` и выполните Deploy / Redeploy.
+   Переменная передаётся в контейнеры через общий блок окружения Compose.
+2. Откройте `https://ваш-домен/auth/register` и создайте свой аккаунт.
+   Пока регистрация включена, другие посетители также могут создавать аккаунты.
+3. Верните `ALLOW_REGISTRATION=false` и снова выполните Redeploy.
+   Существующий аккаунт продолжит работать; вход — через `/auth/login`.
+
 ## Адрес API во frontend
 
 При сборке передаётся `NEXT_PUBLIC_API_URL=http://backend:8000`.

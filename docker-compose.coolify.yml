@@ -3,6 +3,7 @@ x-backend-env: &backend-env
   REDIS_URL: redis://:${REDIS_PASSWORD:?required}@redis:6379/0
   FRONTEND_URL: ${PINGCRM_URL:?required}
   SECRET_KEY: ${SECRET_KEY:?required}
+  ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
   ENCRYPTION_KEY: ${ENCRYPTION_KEY:?required}
   ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
