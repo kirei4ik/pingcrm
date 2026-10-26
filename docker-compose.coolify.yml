@@ -49,6 +49,8 @@ services:
     pull_policy: always
     restart: unless-stopped
     environment: *backend-env
+    expose:
+      - "8000"
     volumes:
       - avatars:/app/static/avatars
     depends_on:
@@ -77,48 +79,18 @@ services:
       backend:
         condition: service_healthy
 
+  # Route / to frontend:3000 and /api, /mcp, /ws, /static to backend:8000
+  # using Coolify Domains. Keep path prefixes as-is; see COOLIFY.md.
   frontend:
     image: ghcr.io/kirei4ik/pingcrm/frontend:${PINGCRM_IMAGE_TAG:-latest}
+    expose:
+      - "3000"
     pull_policy: always
     restart: unless-stopped
     depends_on:
       backend:
         condition: service_healthy
 
-  gateway:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    configs:
-      - source: gateway_caddyfile
-        target: /etc/caddy/Caddyfile
-    depends_on:
-      - frontend
-      - backend
-    expose:
-      - "80"
-
-configs:
-  gateway_caddyfile:
-    content: |
-      :80 {
-        handle /api/* {
-          reverse_proxy backend:8000
-        }
-        handle /mcp/* {
-          reverse_proxy backend:8000 {
-            flush_interval -1
-          }
-        }
-        handle /ws/* {
-          reverse_proxy backend:8000
-        }
-        handle /static/* {
-          reverse_proxy backend:8000
-        }
-        handle {
-          reverse_proxy frontend:3000
-        }
-      }
 
 volumes:
   pgdata:

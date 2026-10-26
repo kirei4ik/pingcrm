@@ -70,15 +70,37 @@ Coolify Compose и этим workflow не собирается.
    Для паролей БД/Redis используйте случайные hex-строки, чтобы специальные
    символы не нарушили URL подключения. На существующей установке сохраните
    прежние пароли, `SECRET_KEY` и `ENCRYPTION_KEY`.
-3. Назначьте домен **только сервису `gateway`**, внутренний порт **80**.
-   Coolify обеспечивает внешний HTTPS, Caddy внутри стека маршрутизирует
-   `/api/*`, `/mcp/*`, `/ws/*` и `/static/*` в backend, остальные запросы —
-   во frontend. Прямой доступ к PostgreSQL, Redis и backend не нужен.
+3. Маршруты обслуживает встроенный прокси Coolify; отдельного Caddy/gateway
+   в Compose нет. Перезагрузите Compose из Git в настройках приложения.
+   Если ранее домен был назначен сервису `gateway`, удалите старую привязку.
+   В **Domains → Add domain** добавьте маршруты для одного публичного домена:
+
+   | Service | Protocol | Domain (пример) | Internal Port | Path |
+   | --- | --- | --- | --- | --- |
+   | `frontend` | HTTPS | `crm.example.com` | `3000` | `/` |
+   | `backend` | HTTPS | `crm.example.com` | `8000` | `/api` |
+   | `backend` | HTTPS | `crm.example.com` | `8000` | `/mcp` |
+   | `backend` | HTTPS | `crm.example.com` | `8000` | `/ws` |
+   | `backend` | HTTPS | `crm.example.com` | `8000` | `/static` |
+
+   Если интерфейс использует одно поле URL, для frontend введите
+   `https://crm.example.com:3000`, для backend —
+   `https://crm.example.com:8000/api`, `https://crm.example.com:8000/mcp`,
+   `https://crm.example.com:8000/ws`, `https://crm.example.com:8000/static`.
+   Порты в этих значениях выбирают порт контейнера; посетители используют
+   обычный HTTPS-порт 443.
+
+   **Обязательно:** в **Advanced → Proxy → Path prefixes** выберите
+   **Keep paths as-is** (в старом интерфейсе отключите **Strip Prefixes**).
+   Backend ожидает исходные пути, например `/api/v1/contacts`, а не
+   `/v1/contacts`. Более конкретные маршруты backend имеют приоритет над
+   корневым маршрутом frontend. Не публикуйте порты через `ports:`;
+   PostgreSQL, Redis и worker остаются доступны только внутри стека.
 4. Дождитесь публикации **обоих** образов и нажмите **Deploy / Redeploy**.
    Все сервисы используют `image:`, локальных `build:` в этом файле нет.
    `pull_policy: always` заставляет Compose проверить образы при развёртывании.
 5. Проверьте `https://ваш-домен/api/health`, страницу входа и логи backend,
-   worker и gateway. Backend выполняет миграции перед запуском API;
+   worker и прокси Coolify. Backend выполняет миграции перед запуском API;
    worker ожидает успешной проверки здоровья backend.
 
 ## Адрес API во frontend
@@ -86,11 +108,13 @@ Coolify Compose и этим workflow не собирается.
 При сборке передаётся `NEXT_PUBLIC_API_URL=http://backend:8000`.
 В этом проекте переменная используется в `frontend/next.config.ts` для
 внутренних rewrites; конфигурация сама добавляет `/api/:path*`.
-Браузер обращается к `/api/...` на текущем публичном домене через gateway.
+Браузер обращается к `/api/...` на текущем публичном домене через прокси Coolify.
 Не передавайте `${PINGCRM_URL}/api`: получится лишний сегмент `/api`.
 Не добавляйте переменную обратно в runtime environment frontend — она
 фиксируется при `next build`. Домен приложения задаётся через `PINGCRM_URL`;
 `FRONTEND_URL` передаётся и backend, и worker через общий блок окружения.
+Изменение маршрутов и удаление Caddy не требуют пересборки образов; можно
+использовать уже опубликованные образы той же версии.
 
 ## Обновление и откат
 
