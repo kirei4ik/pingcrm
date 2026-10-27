@@ -1,6 +1,7 @@
 """Google Contacts one-way sync using the People API."""
 from __future__ import annotations
 
+from datetime import date as calendar_date
 from typing import Any
 
 from google.oauth2.credentials import Credentials
@@ -51,7 +52,7 @@ def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
     family_name: str | None = None
     full_name: str | None = None
     if names:
-        primary = names[0]
+        primary = next((n for n in names if n.get("metadata", {}).get("primary")), names[0])
         given_name = primary.get("givenName")
         family_name = primary.get("familyName")
         full_name = primary.get("displayName")
@@ -70,7 +71,7 @@ def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
     company: str | None = None
     title: str | None = None
     if organizations:
-        org = organizations[0]
+        org = next((o for o in organizations if o.get("metadata", {}).get("primary")), organizations[0])
         company = org.get("name")
         title = org.get("title")
 
@@ -81,6 +82,36 @@ def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
             given_name, family_name = inferred
             full_name = f"{given_name} {family_name}".strip() or None
 
+    birthdays = person.get("birthdays", [])
+    birthday = None
+    if birthdays:
+        date = next((b.get("date") for b in birthdays if b.get("metadata", {}).get("primary")), birthdays[0].get("date"))
+        if date and date.get("month") and date.get("day"):
+            # People API uses year=0 when the year is unknown.
+            try:
+                month, day_value = int(date["month"]), int(date["day"])
+                year = int(date.get("year") or 0)
+                calendar_date(year or 2000, month, day_value)
+                birthday = f"{month:02d}-{day_value:02d}"
+                if year:
+                    birthday = f"{year:04d}-{month:02d}-{day_value:02d}"
+            except (ValueError, TypeError, KeyError):
+                birthday = None
+    group_names = person.get("_contact_group_names", {})
+    contact_source = next(
+        (source for source in person.get("metadata", {}).get("sources", []) if source.get("type") == "CONTACT"),
+        {},
+    )
+    labels = []
+    for membership in person.get("memberships", []):
+        member = membership.get("contactGroupMembership", {})
+        group = member.get("contactGroupResourceName")
+        name = group_names.get(group)
+        group_id = member.get("contactGroupId", "")
+        if group and name and group_id not in {"myContacts", "starred", "friends", "family", "coworkers"}:
+            labels.append({"resource_name": group, "name": name})
+
+    snapshot = {key: value for key, value in person.items() if key != "_contact_group_names"}
     return {
         "full_name": full_name,
         "given_name": given_name,
@@ -89,6 +120,11 @@ def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
         "phones": phones or [],
         "company": company,
         "title": title,
+        "birthday": birthday,
+        "avatar_url": next((p.get("url") for p in person.get("photos", []) if p.get("metadata", {}).get("primary")), (person.get("photos") or [{}])[0].get("url")),
+        "labels": labels,
+        "etag": contact_source.get("etag"),
+        "snapshot": snapshot,
         "source": "google",
         "resource_name": person.get("resourceName"),
     }
@@ -103,11 +139,30 @@ def fetch_google_contacts(access_token: str) -> list[dict[str, Any]]:
     contacts: list[dict[str, Any]] = []
     page_token: str | None = None
 
+    groups: dict[str, str] = {}
+    group_token = None
+    while True:
+        group_kwargs: dict[str, Any] = {"pageSize": 1000, "groupFields": "resourceName,name,groupType"}
+        if group_token:
+            group_kwargs["pageToken"] = group_token
+        group_response = service.contactGroups().list(**group_kwargs).execute()
+        for group in group_response.get("contactGroups", []):
+            resource_name = group.get("resourceName", "")
+            system_ids = {"myContacts", "starred", "friends", "family", "coworkers", "otherContacts", "blocked"}
+            resource_id = resource_name.rsplit("/", 1)[-1]
+            if (group.get("resourceName") and group.get("name")
+                    and group.get("groupType") != "SYSTEM_CONTACT_GROUP"
+                    and resource_id not in system_ids):
+                groups[resource_name] = group["name"]
+        group_token = group_response.get("nextPageToken")
+        if not isinstance(group_token, str) or not group_token:
+            break
+
     while True:
         kwargs: dict[str, Any] = {
             "resourceName": "people/me",
             "pageSize": 1000,
-            "personFields": "names,emailAddresses,phoneNumbers,organizations",
+            "personFields": "names,emailAddresses,phoneNumbers,organizations,birthdays,biographies,addresses,urls,userDefined,photos,memberships,metadata",
         }
         if page_token:
             kwargs["pageToken"] = page_token
@@ -115,13 +170,14 @@ def fetch_google_contacts(access_token: str) -> list[dict[str, Any]]:
         response = service.people().connections().list(**kwargs).execute()
         connections: list[dict[str, Any]] = response.get("connections", [])
         for person in connections:
+            person["_contact_group_names"] = groups
             fields = _extract_contact_fields(person)
             # Skip contacts without any identifying information.
-            if fields["full_name"] or fields["emails"]:
+            if fields["full_name"] or fields["emails"] or fields["phones"]:
                 contacts.append(fields)
 
         page_token = response.get("nextPageToken")
-        if not page_token:
+        if not isinstance(page_token, str) or not page_token:
             break
 
     return contacts

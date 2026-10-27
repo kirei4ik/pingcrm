@@ -8,7 +8,6 @@ spinning up a Celery broker or the ``task_session`` machinery.
 """
 from __future__ import annotations
 
-import re as _re
 import uuid
 
 from celery import shared_task
@@ -22,14 +21,18 @@ from app.integrations.google_calendar import sync_calendar_events
 from app.integrations.google_contacts import fetch_google_contacts
 from app.models.contact import Contact
 from app.models.google_account import GoogleAccount
+from app.models.google_contact_link import GoogleContactLink
 from app.models.notification import Notification
 from app.models.user import User
 from app.services.contact_resolver import normalize_email
+from app.services.google_contact_import import (
+    is_primary_google_account,
+    link_company_organization,
+    save_contact_link,
+    snapshot_scalar,
+)
 from app.services.scoring import calculate_score
 from app.services.task_jobs.common import _run, logger, notify_sync_failure
-
-_NAME_ORG_RE = _re.compile(r"^(.+?)\s*(?:\||@|/|—|–|-\s)\s*(.+)$")
-
 
 async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
     """Pull contacts from every Google account belonging to ``uid``.
@@ -45,9 +48,10 @@ async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
     ga_result = await db.execute(
         select(GoogleAccount).where(GoogleAccount.user_id == uid)
     )
-    refresh_tokens = [(ga.email, ga.refresh_token) for ga in ga_result.scalars().all()]
+    google_accounts = list(ga_result.scalars().all())
+    refresh_tokens = [(ga.id, ga.email, ga.refresh_token) for ga in google_accounts]
     if not refresh_tokens and user.google_refresh_token:
-        refresh_tokens = [(user.email, user.google_refresh_token)]
+        refresh_tokens = [(None, user.email, user.google_refresh_token)]
     if not refresh_tokens:
         return {"status": "not_connected"}
 
@@ -55,9 +59,9 @@ async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
     updated_count = 0
     archived_count = 0
     errors: list[str] = []
-    seen_resource_names: set[str] = set()
+    successful_accounts = 0
 
-    for account_email, token in refresh_tokens:
+    for account_id, account_email, token in refresh_tokens:
         try:
             access_token = refresh_access_token(token)
             google_contacts = fetch_google_contacts(access_token)
@@ -85,30 +89,57 @@ async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
             errors.append(f"{account_email}: {exc}")
             continue
 
+        successful_accounts += 1
+
         for fields in google_contacts:
             try:
                 resource_name = fields.get("resource_name")
-                if resource_name:
-                    seen_resource_names.add(resource_name)
-
                 raw_name = fields.get("full_name")
-                if raw_name and not fields.get("company"):
-                    m = _NAME_ORG_RE.match(raw_name)
-                    if m:
-                        fields["full_name"] = m.group(1).strip()
-                        fields["company"] = m.group(2).strip()
 
                 emails = fields.get("emails") or []
                 existing = None
+                source_link = None
+                prior_snapshot = None
+                source_verified = False
+                legacy_exact = False
 
-                if resource_name:
+                if resource_name and account_id:
                     r = await db.execute(
-                        select(Contact).where(
+                        select(GoogleContactLink).where(
+                            GoogleContactLink.google_account_id == account_id,
+                            GoogleContactLink.resource_name == resource_name,
+                        )
+                    )
+                    source_link = r.scalar_one_or_none()
+                    if source_link:
+                        existing = await db.get(Contact, source_link.contact_id)
+                        if existing and existing.user_id == uid:
+                            source_verified = True
+                            prior_snapshot = source_link.snapshot or {}
+                        else:
+                            existing = None
+
+                    # Legacy scalar links can be safely adopted only when this
+                    # is the user's sole configured account. The returned
+                    # resourceName then verifies the source before linking.
+                    if not existing and len(google_accounts) == 1:
+                        r = await db.execute(select(Contact).where(
                             Contact.user_id == uid,
                             Contact.google_resource_name == resource_name,
-                        ).limit(1)
-                    )
+                        ).limit(1))
+                        existing = r.scalar_one_or_none()
+                        legacy_exact = existing is not None
+                        source_verified = legacy_exact
+                elif resource_name and not google_accounts:
+                    # The legacy user-level token represents the sole
+                    # configured source; keep its historical scalar mapping.
+                    r = await db.execute(select(Contact).where(
+                        Contact.user_id == uid,
+                        Contact.google_resource_name == resource_name,
+                    ).limit(1))
                     existing = r.scalar_one_or_none()
+                    legacy_exact = existing is not None
+                    source_verified = legacy_exact
 
                 if not existing and emails:
                     for email in emails:
@@ -135,22 +166,36 @@ async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
                             if existing:
                                 break
 
+                if not existing and resource_name and len(google_accounts) > 1:
+                    legacy_result = await db.execute(select(Contact.id).where(
+                        Contact.user_id == uid,
+                        Contact.google_resource_name == resource_name,
+                    ).limit(1))
+                    if legacy_result.scalar_one_or_none() is not None:
+                        errors.append(f"{account_email}: unresolved legacy Google link {resource_name} (multiple accounts)")
+                        continue
+
                 if existing:
-                    if raw_name and not existing.full_name:
-                        existing.full_name = raw_name
-                    if fields.get("given_name") and not existing.given_name:
-                        existing.given_name = fields["given_name"]
-                    if fields.get("family_name") and not existing.family_name:
-                        existing.family_name = fields["family_name"]
-                    if fields.get("company") and not existing.company:
-                        existing.company = fields["company"]
-                    if fields.get("title") and not existing.title:
-                        existing.title = fields["title"]
-                    new_phones = [p for p in fields.get("phones", []) if p not in (existing.phones or [])]
-                    if new_phones:
-                        existing.phones = list(existing.phones or []) + new_phones
+                    edited = set(existing.user_edited_fields or [])
+                    primary_google_account = await is_primary_google_account(db, existing.id, account_id)
+                    for attribute, field in (("full_name", "full_name"), ("given_name", "given_name"), ("family_name", "family_name"), ("company", "company"), ("title", "title"), ("birthday", "birthday"), ("avatar_url", "avatar_url")):
+                        proposed = fields.get(field)
+                        current_value = getattr(existing, attribute)
+                        source_value_matches = (
+                            prior_snapshot is not None
+                            and snapshot_scalar(prior_snapshot, field) == current_value
+                        )
+                        may_refresh = source_verified and primary_google_account and (legacy_exact or source_value_matches)
+                        if proposed and field not in edited and not (field == "company" and existing.organization_id) and (not current_value or may_refresh):
+                            setattr(existing, attribute, proposed)
+                    if "emails" not in edited:
+                        existing.emails = list(dict.fromkeys(list(existing.emails or []) + emails))
+                    if "phones" not in edited:
+                        existing.phones = list(dict.fromkeys(list(existing.phones or []) + list(fields.get("phones", []))))
                     if resource_name and not existing.google_resource_name:
                         existing.google_resource_name = resource_name
+                    await save_contact_link(db, contact=existing, account_id=account_id, fields=fields)
+                    await link_company_organization(db, existing, uid)
                     updated_count += 1
                 else:
                     contact = Contact(
@@ -164,8 +209,13 @@ async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
                         title=fields.get("title"),
                         source="google",
                         google_resource_name=resource_name,
+                        birthday=fields.get("birthday"),
+                        avatar_url=fields.get("avatar_url"),
                     )
                     db.add(contact)
+                    await db.flush()
+                    await save_contact_link(db, contact=contact, account_id=account_id, fields=fields)
+                    await link_company_organization(db, contact, uid)
                     created_count += 1
             except Exception as exc:
                 logger.exception(
@@ -175,23 +225,8 @@ async def _sync_google_contacts(db: AsyncSession, uid: uuid.UUID) -> dict:
                 name_hint = fields.get("full_name") or ", ".join(fields.get("emails", [])[:1]) or "unknown"
                 errors.append(f"{name_hint}: {exc}")
 
-    if seen_resource_names:
-        stale_result = await db.execute(
-            select(Contact).where(
-                Contact.user_id == uid,
-                Contact.google_resource_name.isnot(None),
-                Contact.google_resource_name.notin_(seen_resource_names),
-                Contact.priority_level != "archived",
-            )
-        )
-        for stale in stale_result.scalars().all():
-            stale.priority_level = "archived"
-            archived_count += 1
-        if archived_count:
-            logger.info(
-                "sync_google_contacts: archived %d contact(s) deleted from Google for user %s",
-                archived_count, uid,
-            )
+    # Imports are additive. A partial account fetch or empty address book must
+    # never archive CRM contacts based on an incomplete provider snapshot.
 
     if created_count or updated_count:
         score_result = await db.execute(
@@ -357,7 +392,10 @@ async def _sync_google_calendar(db: AsyncSession, uid: uuid.UUID) -> dict:
 async def _collect_google_calendar_user_ids(db: AsyncSession) -> list[str]:
     """User IDs eligible for the daily ``sync_google_calendar_all`` beat task."""
     result = await db.execute(
-        select(User.id).where(User.google_refresh_token.isnot(None))
+        select(User.id).where(
+            User.google_refresh_token.isnot(None)
+            | select(GoogleAccount.id).where(GoogleAccount.user_id == User.id).exists()
+        )
     )
     return [str(row) for row in result.scalars().all()]
 

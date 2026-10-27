@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import math
+import uuid
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import String, cast, exists, func, or_, select
+from sqlalchemy import String, cast, exists, false, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
@@ -18,6 +19,7 @@ def build_contact_filter_query(
     search: str | None = None,
     tag: str | None = None,
     source: str | None = None,
+    google_label: str | None = None,
     score: str | None = None,
     priority: str | None = None,
     date_from: str | None = None,
@@ -108,6 +110,30 @@ def build_contact_filter_query(
 
     if source:
         base_query = base_query.where(Contact.source == source)
+
+    if google_label:
+        from app.models.google_account import GoogleAccount
+        from app.models.google_contact_link import GoogleContactLink
+
+        account_id, separator, resource_name = google_label.partition(":")
+        try:
+            account_uuid = uuid.UUID(account_id)
+        except ValueError:
+            base_query = base_query.where(false())
+        else:
+            if not separator or not resource_name.startswith("contactGroups/"):
+                base_query = base_query.where(false())
+            else:
+                base_query = base_query.where(exists(
+                    select(GoogleContactLink.id)
+                    .join(GoogleAccount, GoogleAccount.id == GoogleContactLink.google_account_id)
+                    .where(
+                        GoogleContactLink.contact_id == Contact.id,
+                        GoogleContactLink.google_account_id == account_uuid,
+                        GoogleAccount.user_id == user_id,
+                        GoogleContactLink.labels.contains([{"resource_name": resource_name}]),
+                    )
+                ))
 
     if date_from:
         try:
@@ -200,6 +226,7 @@ async def list_contacts_paginated(
     search: str | None = None,
     tag: str | None = None,
     source: str | None = None,
+    google_label: str | None = None,
     score: str | None = None,
     priority: str | None = None,
     date_from: str | None = None,
@@ -224,6 +251,7 @@ async def list_contacts_paginated(
         search=search,
         tag=tag,
         source=source,
+        google_label=google_label,
         score=score,
         priority=priority,
         date_from=date_from,

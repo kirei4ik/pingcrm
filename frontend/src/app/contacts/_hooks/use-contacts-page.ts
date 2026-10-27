@@ -15,6 +15,7 @@ export function useContactsPage() {
     scoreFilter,
     priorityFilter,
     tagFilter,
+    googleLabelFilter,
     sourceFilter,
     interactionFrom,
     interactionTo,
@@ -47,6 +48,7 @@ export function useContactsPage() {
     score: scoreFilter,
     priority: priorityFilter,
     tag: tagFilter || undefined,
+    google_label: googleLabelFilter || undefined,
     source: sourceFilter || undefined,
     interaction_from: interactionFrom || undefined,
     interaction_to: interactionTo || undefined,
@@ -57,7 +59,7 @@ export function useContactsPage() {
 
   const contacts = data?.data ?? [];
   const meta = data?.meta;
-  const activeFilterCount = [tagFilter, sourceFilter, interactionFrom, interactionTo, scoreFilter, priorityFilter, includeArchived, ghostedFilter].filter(Boolean).length;
+  const activeFilterCount = [tagFilter, googleLabelFilter, sourceFilter, interactionFrom, interactionTo, scoreFilter, priorityFilter, includeArchived, ghostedFilter].filter(Boolean).length;
   const stats = statsQuery.data?.total != null ? statsQuery.data : null;
   const activeRelationships = stats ? (stats.strong ?? 0) + (stats.active ?? 0) : 0;
   const totalCount = meta?.total ?? contacts.length;

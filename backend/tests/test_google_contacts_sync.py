@@ -61,6 +61,7 @@ def _build_mock_service(pages: list[list[dict]]) -> MagicMock:
 
     execute_mock = MagicMock(side_effect=[r for r in responses])
     connections_mock.return_value.execute = execute_mock
+    service.contactGroups.return_value.list.return_value.execute.return_value = {"contactGroups": []}
     return service
 
 
@@ -74,6 +75,46 @@ def _build_mock_service(pages: list[list[dict]]) -> MagicMock:
 
 
 class TestFetchGoogleContacts:
+    def test_primary_name_and_birthday_without_year_are_preserved(self):
+        person = {
+            "resourceName": "people/bday",
+            "names": [
+                {"displayName": "Secondary", "givenName": "Second"},
+                {"displayName": "Primary Person", "givenName": "Primary", "familyName": "Person", "metadata": {"primary": True}},
+            ],
+            "birthdays": [{"date": {"year": 0, "month": 2, "day": 9}, "metadata": {"primary": True}}],
+            "biographies": [{"value": "source note"}],
+        }
+        fields = _extract_contact_fields(person)
+        assert fields["full_name"] == "Primary Person"
+        assert fields["birthday"] == "02-09"
+        assert fields["snapshot"]["biographies"][0]["value"] == "source note"
+
+    def test_birthday_with_year_is_normalized_without_losing_year(self):
+        fields = _extract_contact_fields({
+            "resourceName": "people/bday",
+            "birthdays": [{"date": {"year": 1987, "month": 12, "day": 1}}],
+        })
+        assert fields["birthday"] == "1987-12-01"
+
+    def test_invalid_birthday_stays_in_snapshot_but_is_not_written_to_scalar(self):
+        person = {
+            "resourceName": "people/invalid-bday",
+            "birthdays": [{"date": {"year": 0, "month": 2, "day": 31}}],
+        }
+        fields = _extract_contact_fields(person)
+        assert fields["birthday"] is None
+        assert fields["snapshot"]["birthdays"][0]["date"]["day"] == 31
+
+    def test_link_etag_comes_from_contact_source(self):
+        fields = _extract_contact_fields({
+            "resourceName": "people/etag",
+            "etag": "aggregate-etag",
+            "metadata": {"sources": [{"type": "PROFILE", "etag": "profile-etag"}, {"type": "CONTACT", "etag": "contact-etag"}]},
+        })
+        assert fields["etag"] == "contact-etag"
+        assert fields["snapshot"]["etag"] == "aggregate-etag"
+
     def test_returns_contacts_from_single_page(self):
         """Contacts on a single page are returned correctly."""
         persons = [
@@ -103,29 +144,32 @@ class TestFetchGoogleContacts:
         names = [r["given_name"] for r in result]
         assert names == ["Alice", "Bob", "Carol"]
 
-    def test_skips_contacts_without_name_or_email(self):
-        """Contacts with no full_name and no emails are excluded."""
+    def test_includes_phone_only_contacts_and_skips_empty_contacts(self):
+        """A phone identifies a contact even without a name or email."""
         persons = [
             _make_person("people/c1", "Alice", "Smith", emails=["a@ex.com"]),
-            # Phone only, no name, no email — should be skipped
+            # Phone-only contacts must survive import.
             {"resourceName": "people/c2", "phoneNumbers": [{"value": "+1555"}]},
             # Has name but no email — included (name is sufficient)
             _make_person("people/c3", "Bob", "Jones"),
+            {"resourceName": "people/empty"},
         ]
         mock_service = _build_mock_service([persons])
 
         with patch("app.integrations.google_contacts._build_people_service", return_value=mock_service):
             result = fetch_google_contacts("fake-token")
 
-        assert len(result) == 2
+        assert len(result) == 3
         resource_names = [r["resource_name"] for r in result]
-        assert "people/c2" not in resource_names
+        assert "people/c2" in resource_names
+        assert "people/empty" not in resource_names
 
     def test_api_error_propagates(self):
         """An HttpError from the Google API bubbles up as an exception."""
         from googleapiclient.errors import HttpError
 
         mock_service = MagicMock()
+        mock_service.contactGroups.return_value.list.return_value.execute.return_value = {"contactGroups": []}
         mock_resp = Mock()
         mock_resp.status = 403
         mock_resp.reason = "Forbidden"
@@ -141,6 +185,7 @@ class TestFetchGoogleContacts:
         from googleapiclient.errors import HttpError
 
         mock_service = MagicMock()
+        mock_service.contactGroups.return_value.list.return_value.execute.return_value = {"contactGroups": []}
         mock_resp = Mock()
         mock_resp.status = 429
         mock_resp.reason = "Too Many Requests"
@@ -156,6 +201,7 @@ class TestFetchGoogleContacts:
     def test_empty_connections_returns_empty_list(self):
         """A response with no connections key returns an empty list."""
         mock_service = MagicMock()
+        mock_service.contactGroups.return_value.list.return_value.execute.return_value = {"contactGroups": []}
         mock_service.people.return_value.connections.return_value.list.return_value.execute.return_value = {}
 
         with patch("app.integrations.google_contacts._build_people_service", return_value=mock_service):

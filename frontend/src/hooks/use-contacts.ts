@@ -63,6 +63,7 @@ export type ContactsParams = {
   archived_only?: boolean;
   include_archived?: boolean;
   sort?: string;
+  google_label?: string;
 }
 
 export type ContactCreateInput = {

@@ -22,11 +22,6 @@ celery_app.conf.update(
     task_time_limit=600,       # 10 minutes hard limit
     # Beat schedule
     beat_schedule={
-        # Sync Gmail for all users every 6 hours
-        "sync-gmail-all-every-6h": {
-            "task": "app.services.tasks.sync_gmail_all",
-            "schedule": crontab(minute=0, hour="*/6"),
-        },
         # Recalculate relationship scores every day at 02:00 UTC
         "update-relationship-scores-daily": {
             "task": "app.services.tasks.update_relationship_scores",
@@ -77,11 +72,6 @@ celery_app.conf.update(
             "task": "app.services.tasks.cleanup_stale_telegram_locks",
             "schedule": crontab(minute=15),
         },
-        # Scan for upcoming meetings and send prep emails every 10 minutes
-        "scan-meeting-preps-every-10m": {
-            "task": "app.services.tasks.scan_meeting_preps",
-            "schedule": crontab(minute="*/10"),
-        },
         # Check WhatsApp session health daily at 01:00 UTC
         "check-whatsapp-sessions-daily": {
             "task": "app.services.tasks.check_whatsapp_sessions",
@@ -94,3 +84,13 @@ celery_app.conf.update(
         },
     },
 )
+
+if settings.GOOGLE_GMAIL_ENABLED:
+    celery_app.conf.beat_schedule["sync-gmail-all-every-6h"] = {
+        "task": "app.services.tasks.sync_gmail_all",
+        "schedule": crontab(minute=0, hour="*/6"),
+    }
+    celery_app.conf.beat_schedule["scan-meeting-preps-every-10m"] = {
+        "task": "app.services.tasks.scan_meeting_preps",
+        "schedule": crontab(minute="*/10"),
+    }

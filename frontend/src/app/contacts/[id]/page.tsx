@@ -17,6 +17,7 @@ import { CommonGroupsCard } from "./_components/common-groups-card";
 import { RelatedContactsCard } from "./_components/related-contacts-card";
 import { DuplicatesCard } from "./_components/duplicates-card";
 import { AddNoteInput } from "./_components/add-note-input";
+import { GoogleContactPanel } from "./_components/google-contact-panel";
 
 /** Fields the API can reject with a 409 conflict, mapped to their toast label. */
 const CONFLICT_FIELD_LABELS: Record<string, string> = {
@@ -261,6 +262,7 @@ export default function ContactDetailPage() {
 
           {/* Sidebar (1/3) — DOM order 1, visual order 1 on desktop */}
           <div className="animate-in stagger-3 lg:col-span-1 lg:order-1 space-y-4">
+              <GoogleContactPanel contactId={id} displayName={displayName} />
             {/* Mobile toggle — hidden on lg+ */}
             <button
               onClick={() => setSidebarOpen((v) => !v)}

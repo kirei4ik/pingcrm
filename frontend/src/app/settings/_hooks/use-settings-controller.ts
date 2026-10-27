@@ -107,7 +107,7 @@ export type UseSettingsControllerReturn = {
   fetchConnectionStatus: () => Promise<void>;
   showSuccessModal: (platform: string, username?: string | null) => Promise<void>;
   pollForNotification: (platform: string, setter: (s: SyncState) => void) => void;
-  handleGoogleConnect: () => Promise<void>;
+  handleGoogleConnect: (writeContacts?: boolean) => Promise<void>;
   handleGoogleSyncAll: () => Promise<void>;
   handleTelegramSync: () => Promise<void>;
   handleTwitterConnect: () => Promise<void>;
@@ -264,10 +264,12 @@ export function useSettingsController(): UseSettingsControllerReturn {
   );
 
   /* ── Google handlers ── */
-  const handleGoogleConnect = async () => {
+  const handleGoogleConnect = async (writeContacts = false) => {
     setGoogleConnect({ status: "loading", message: "" });
     try {
-      const { data, error } = await client.GET("/api/v1/auth/google/url", {});
+      const { data, error } = await client.GET("/api/v1/auth/google/url", {
+        params: { query: { write_contacts: writeContacts || undefined } },
+      });
       if (error || !data?.data) {
         setGoogleConnect({
           status: "error",
@@ -275,7 +277,7 @@ export function useSettingsController(): UseSettingsControllerReturn {
         });
         return;
       }
-      const url = (data.data as { url?: string })?.url;
+      const url = data.data.url;
       if (url) window.location.href = url;
       else setGoogleConnect({ status: "error", message: "Google OAuth not configured" });
     } catch {

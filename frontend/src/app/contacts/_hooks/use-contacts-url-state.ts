@@ -15,6 +15,7 @@ export function useContactsUrlState() {
   const scoreFilter = searchParams.get("score") ?? undefined;
   const priorityFilter = searchParams.get("priority") ?? undefined;
   const tagFilter = searchParams.get("tag") ?? "";
+  const googleLabelFilter = searchParams.get("google_label") ?? "";
   const sourceFilter = searchParams.get("source") ?? "";
   const interactionFrom = searchParams.get("interaction_from") ?? "";
   const interactionTo = searchParams.get("interaction_to") ?? "";
@@ -45,6 +46,7 @@ export function useContactsUrlState() {
     scoreFilter,
     priorityFilter,
     tagFilter,
+    googleLabelFilter,
     sourceFilter,
     interactionFrom,
     interactionTo,
