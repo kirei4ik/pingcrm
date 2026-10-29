@@ -445,3 +445,37 @@ async def test_new_phones_appended_not_replaced(db: AsyncSession, test_user: Use
     assert "+111" in existing.phones
     assert "+222" in existing.phones
     assert len(existing.phones) == 2
+
+
+def test_import_uses_supported_group_mask_and_keeps_paginated_labels_and_birthday():
+    """Google rejects resourceName in groupFields although it returns it on each group."""
+    service = _build_mock_service([[{
+        "resourceName": "people/person-with-birthday",
+        "names": [{"displayName": "Birthday Contact"}],
+        "birthdays": [{"date": {"month": 2, "day": 29}}],
+        "memberships": [{"contactGroupMembership": {"contactGroupResourceName": "contactGroups/friends-custom"}}],
+    }]])
+    requests = []
+
+    def groups_list(**kwargs):
+        requested_fields = set(kwargs.get("groupFields", "").split(",")) - {""}
+        supported_fields = {"clientData", "groupType", "memberCount", "metadata", "name"}
+        if not requested_fields <= supported_fields:
+            raise ValueError("Invalid groupFields mask path")
+        requests.append(kwargs)
+        if kwargs.get("pageToken") == "groups-page-two":
+            payload = {"contactGroups": [{"resourceName": "contactGroups/friends-custom", "name": "02_Друзья", "groupType": "USER_CONTACT_GROUP"}]}
+        else:
+            payload = {"contactGroups": [{"resourceName": "contactGroups/myContacts", "name": "My Contacts", "groupType": "SYSTEM_CONTACT_GROUP"}], "nextPageToken": "groups-page-two"}
+        response = MagicMock()
+        response.execute.return_value = payload
+        return response
+
+    service.contactGroups.return_value.list.side_effect = groups_list
+    with patch("app.integrations.google_contacts._build_people_service", return_value=service):
+        contacts = fetch_google_contacts("synthetic-access-token")
+    assert len(requests) == 2
+    assert requests[1]["pageToken"] == "groups-page-two"
+    assert contacts[0]["birthday"] == "02-29"
+    assert contacts[0]["labels"] == [{"resource_name": "contactGroups/friends-custom", "name": "02_Друзья"}]
+    assert contacts[0]["resource_name"] == "people/person-with-birthday"

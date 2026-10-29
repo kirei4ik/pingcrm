@@ -142,7 +142,8 @@ def fetch_google_contacts(access_token: str) -> list[dict[str, Any]]:
     groups: dict[str, str] = {}
     group_token = None
     while True:
-        group_kwargs: dict[str, Any] = {"pageSize": 1000, "groupFields": "resourceName,name,groupType"}
+        # resourceName is returned automatically; Google rejects it in groupFields.
+        group_kwargs: dict[str, Any] = {"pageSize": 1000, "groupFields": "name,groupType"}
         if group_token:
             group_kwargs["pageToken"] = group_token
         group_response = service.contactGroups().list(**group_kwargs).execute()
