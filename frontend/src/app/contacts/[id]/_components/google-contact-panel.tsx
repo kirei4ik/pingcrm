@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GoogleSourceDetails } from "./google-source-details";
 import { ExternalLink, RefreshCw, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
@@ -146,7 +147,7 @@ function GooglePreviewDialog({
   );
 }
 
-export function GoogleContactPanel({ contactId, displayName }: { contactId: string; displayName: string }) {
+export function GoogleContactPanel({ contactId, displayName, crmBirthday }: { contactId: string; displayName: string; crmBirthday?: string | null }) {
   const [selectedLinkId, setSelectedLinkId] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const query = useQuery({
@@ -190,11 +191,7 @@ export function GoogleContactPanel({ contactId, displayName }: { contactId: stri
           </a>
           <button type="button" onClick={() => setShowPreview(true)} disabled={!selectedLink.can_write} title={selectedLink.can_write ? "Review selected changes before updating Google" : "Reconnect this account with Contacts write access in Settings"} className="rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">Update in Google</button>
         </div>}
-        {details && <div className="mt-4 grid gap-3 border-t border-stone-100 pt-3 dark:border-stone-800 sm:grid-cols-2">
-          {([
-            ["Birthdays", details.birthdays], ["Biographies", details.biographies], ["Addresses", details.addresses], ["Links", details.urls], ["Other Google fields", details.userDefined],
-          ] as const).filter(([, values]) => values.length > 0).map(([label, values]) => <div key={label} className="min-w-0"><h3 className="text-[10px] font-semibold uppercase tracking-wide text-stone-400">{label}</h3><pre className="mt-1 whitespace-pre-wrap break-words text-xs text-stone-600 dark:text-stone-300">{values.map(formatValue).join("\n")}</pre></div>)}
-        </div>}
+        {details && <GoogleSourceDetails details={details} crmBirthday={crmBirthday} />}
         {selectedLink && !selectedLink.can_write && <p className="mt-3 text-xs text-amber-700 dark:text-amber-300">Read-only access. Re-authorize Google in Settings to enable manual updates.</p>}
       </section>
       {showPreview && selectedLink && <GooglePreviewDialog contactId={contactId} link={selectedLink} onClose={() => setShowPreview(false)} />}
