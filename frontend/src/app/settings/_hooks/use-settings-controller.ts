@@ -293,7 +293,6 @@ export function useSettingsController(): UseSettingsControllerReturn {
     try {
       const results = await Promise.allSettled([
         client.POST("/api/v1/contacts/sync/google"),
-        client.POST("/api/v1/contacts/sync/gmail", {}),
         client.POST("/api/v1/contacts/sync/google-calendar"),
       ]);
       const anyError = results.some(

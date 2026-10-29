@@ -290,7 +290,6 @@ describe("SettingsPage", () => {
     mockedClient.POST.mockImplementation((url: string) => {
       if (
         url === "/api/v1/contacts/sync/google" ||
-        url === "/api/v1/contacts/sync/gmail" ||
         url === "/api/v1/contacts/sync/google-calendar"
       )
         return Promise.resolve({ data: null, error: null });
@@ -306,6 +305,8 @@ describe("SettingsPage", () => {
     await waitFor(() => {
       // After sync, POST was called with the google endpoint
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
+      expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google-calendar");
+      expect(mockedClient.POST.mock.calls.some(([url]) => url === "/api/v1/contacts/sync/gmail")).toBe(false);
       // Button shows syncing state (stays loading while polling for notification)
       expect(screen.getByText("Syncing…")).toBeInTheDocument();
     });
