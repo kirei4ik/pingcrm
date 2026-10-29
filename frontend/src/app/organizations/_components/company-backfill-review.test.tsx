@@ -40,3 +40,19 @@ describe("CompanyBackfillReview", () => {
     expect(await screen.findByRole("status")).toHaveTextContent("Linked 2 contacts from the reviewed groups.");
   });
 });
+
+it("selects all previewed groups without applying until confirmed, then clears selection", async () => {
+  mocks.post.mockClear();
+  mocks.get.mockResolvedValue({ data: { data: [
+    { name: "Acme", contact_ids: ["one"], organization_id: null },
+    { name: "Beta", contact_ids: ["two", "three"], organization_id: null },
+  ] } });
+  renderPanel();
+  fireEvent.click(screen.getByRole("button", { name: "Review company links" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Select all 2 groups" }));
+  expect(screen.getByText("2 groups and 3 contacts selected")).toBeInTheDocument();
+  expect(mocks.post).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Apply 2 reviewed groups" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Clear selection" }));
+  expect(screen.getByRole("button", { name: "Apply 0 reviewed groups" })).toBeDisabled();
+});

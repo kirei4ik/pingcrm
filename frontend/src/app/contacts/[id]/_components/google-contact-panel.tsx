@@ -165,7 +165,11 @@ export function GoogleContactPanel({ contactId, displayName }: { contactId: stri
 
   if (query.isLoading) return <section className="rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-400 dark:border-stone-700 dark:bg-stone-900">Loading Google contact…</section>;
   if (query.isError) return <section className="rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-500 dark:border-stone-700 dark:bg-stone-900">Google contact details are unavailable. <button type="button" onClick={() => void query.refetch()} className="text-teal-600 underline">Retry</button></section>;
-  if (links.length === 0) return null;
+  if (links.length === 0) return <section className="rounded-xl border border-stone-200 bg-white p-5 dark:border-stone-700 dark:bg-stone-900">
+    <h2 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Google Contacts</h2>
+    <p className="mt-2 text-xs text-stone-500 dark:text-stone-400">No Google source is linked to this contact yet. Run Contacts sync in Settings after connecting your Google account to import birthdays, labels and enable reviewed updates.</p>
+    <a href="/settings" className="mt-3 inline-block text-xs font-semibold text-teal-700 underline dark:text-teal-400">Open Google settings</a>
+  </section>;
 
   const googleTarget = verifiedGoogleContactUrl(selectedLink?.google_url ?? null);
   return (

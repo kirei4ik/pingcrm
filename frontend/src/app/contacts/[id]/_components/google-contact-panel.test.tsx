@@ -62,3 +62,11 @@ describe("GoogleContactPanel", () => {
     }));
   });
 });
+
+it("explains how to import a missing Google source instead of silently hiding actions", async () => {
+  mocks.get.mockResolvedValue({ data: { data: { gmail_enabled: false, links: [], details: [] } } });
+  renderPanel();
+  expect(await screen.findByText(/No Google source is linked/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Open Google settings" })).toHaveAttribute("href", "/settings");
+  expect(screen.queryByRole("button", { name: "Update in Google" })).not.toBeInTheDocument();
+});

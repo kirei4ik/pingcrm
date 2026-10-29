@@ -99,6 +99,11 @@ export function CompanyBackfillReview() {
         {preview.isError && <div className="rounded-lg border border-red-200 bg-white p-3 text-xs text-red-700 dark:border-red-900 dark:bg-stone-900 dark:text-red-300"><p role="alert">Could not load the company-link preview.</p><button type="button" onClick={() => void preview.refetch()} className="mt-1 font-semibold underline">Try again</button></div>}
         {preview.isSuccess && groups.length === 0 && <p className="rounded-lg border border-stone-200 bg-white p-4 text-xs text-stone-500 dark:border-stone-700 dark:bg-stone-900">No unlinked active contacts with a company name were found.</p>}
 
+        {preview.isSuccess && groups.length > 0 && <div className="mb-3 flex flex-wrap gap-2">
+          <button type="button" disabled={apply.isPending || preview.isFetching} onClick={() => { setSelectedNames(new Set(groups.map((group) => group.name))); setErrorMessageText(""); setStatusMessage(""); }} className="rounded-md border border-stone-300 px-3 py-1.5 text-xs font-semibold text-stone-700 disabled:opacity-50 dark:border-stone-600 dark:text-stone-200">Select all {groups.length} groups</button>
+          <button type="button" disabled={selectedGroups.length === 0 || apply.isPending} onClick={() => { setSelectedNames(new Set()); setErrorMessageText(""); setStatusMessage(""); }} className="rounded-md border border-stone-300 px-3 py-1.5 text-xs text-stone-700 disabled:opacity-50 dark:border-stone-600 dark:text-stone-200">Clear selection</button>
+        </div>}
+
         {preview.isSuccess && groups.length > 0 && <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
           {groups.map((group) => <label key={group.name} className={`flex cursor-pointer items-start gap-3 rounded-lg border bg-white p-3 transition-colors dark:bg-stone-900 ${selectedNames.has(group.name) ? "border-teal-400 ring-1 ring-teal-300 dark:border-teal-700" : "border-stone-200 dark:border-stone-700"}`}>
             <input type="checkbox" checked={selectedNames.has(group.name)} disabled={apply.isPending} onChange={() => toggleGroup(group.name)} className="mt-0.5 h-4 w-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500" aria-label={`Review ${group.name} (${group.contact_ids.length} contacts)`} />
