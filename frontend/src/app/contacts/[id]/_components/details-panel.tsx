@@ -10,6 +10,7 @@ import { client } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDistanceToNow } from "date-fns";
 import type { Contact } from "@/hooks/use-contacts";
+import { useGoogleContact, googleTelegramUrl } from "@/hooks/use-google-contact";
 import { BccAddressRow } from "./bcc-address-row";
 
 /* ── Copy button ── */
@@ -53,6 +54,7 @@ function InlineField({
   isLink,
   linkPrefix,
   internalHref,
+  fallbackLink,
 }: {
   label: string;
   value: string | null | undefined;
@@ -62,6 +64,7 @@ function InlineField({
   isLink?: boolean;
   linkPrefix?: string;
   internalHref?: string;
+  fallbackLink?: string | null;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value ?? "");
@@ -141,6 +144,8 @@ function InlineField({
                 {displayValue ?? value}
               </span>
             )
+          ) : fallbackLink ? (
+            <a href={fallbackLink} target="_blank" rel="noopener noreferrer" title="Imported from Google Contacts" className="break-all text-xs font-medium text-teal-600 dark:text-teal-400">{fallbackLink}</a>
           ) : (
             <span className="text-xs text-stone-400 dark:text-stone-500">—</span>
           )}
@@ -351,6 +356,8 @@ export function DetailsPanel({
   isExtracting?: boolean;
 }) {
   const { user } = useAuth();
+  const google = useGoogleContact(contact.id);
+  const googleTelegram = google.data?.details.flatMap((source) => source.urls).map((item) => googleTelegramUrl(item.value)).find(Boolean);
   const hasBios = Boolean(
     contact.twitter_bio || contact.telegram_bio || contact.full_name
   );
@@ -436,6 +443,7 @@ export function DetailsPanel({
         <InlineField
           label="Telegram"
           value={contact.telegram_username}
+          fallbackLink={googleTelegram}
           onSave={(v) => onSaveField("telegram_username", v)}
           copyable
           isLink

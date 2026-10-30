@@ -51,6 +51,7 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:3000/auth/google/callback"
+    GOOGLE_GMAIL_ENABLED: bool = False
 
     TWITTER_API_KEY: str = ""
     TWITTER_API_SECRET: str = ""

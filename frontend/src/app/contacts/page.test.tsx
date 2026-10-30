@@ -208,8 +208,7 @@ describe("ContactsPage", () => {
     it("renders platform checkboxes when panel open", () => {
       currentParams = new URLSearchParams("filters=1");
       renderPage();
-      // Platform section shows Gmail, Telegram, Twitter checkboxes
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      // Platform section shows Telegram and Twitter checkboxes. Gmail is disabled in this integration.
       expect(screen.getByText("Telegram")).toBeInTheDocument();
       expect(screen.getByText("Twitter / X")).toBeInTheDocument();
     });
@@ -217,12 +216,12 @@ describe("ContactsPage", () => {
     it("calls replace with source param on platform checkbox click", () => {
       currentParams = new URLSearchParams("filters=1");
       renderPage();
-      // Click Gmail checkbox
-      const gmailLabel = screen.getByText("Gmail");
-      const gmailCheckbox = gmailLabel.closest("label")!.querySelector("input[type='checkbox']")!;
-      fireEvent.click(gmailCheckbox);
+      // Click the Telegram checkbox
+      const telegramLabel = screen.getByText("Telegram");
+      const telegramCheckbox = telegramLabel.closest("label")!.querySelector("input[type='checkbox']")!;
+      fireEvent.click(telegramCheckbox);
       expect(mockReplace).toHaveBeenCalledWith(
-        expect.stringContaining("source=gmail"),
+        expect.stringContaining("source=telegram"),
         expect.anything()
       );
     });
@@ -234,7 +233,7 @@ describe("ContactsPage", () => {
     });
 
     it("shows active filter count badge when source filter is set", () => {
-      currentParams = new URLSearchParams("source=gmail");
+      currentParams = new URLSearchParams("source=telegram");
       renderPage();
       // The Filters button should show a badge with count 1
       const badge = screen.getByText("1");
@@ -242,26 +241,26 @@ describe("ContactsPage", () => {
     });
 
     it("shows active filter count badge", () => {
-      currentParams = new URLSearchParams("source=gmail&tag=investor");
+      currentParams = new URLSearchParams("source=telegram&tag=investor");
       renderPage();
       expect(screen.getByText("2")).toBeInTheDocument();
     });
 
     it("shows Clear all button when filters active", () => {
-      currentParams = new URLSearchParams("source=gmail");
+      currentParams = new URLSearchParams("source=telegram");
       renderPage();
       expect(screen.getByText("Clear all")).toBeInTheDocument();
     });
 
     it("clears all filters on Clear all click", () => {
-      currentParams = new URLSearchParams("source=gmail&tag=investor");
+      currentParams = new URLSearchParams("source=telegram&tag=investor");
       renderPage();
       fireEvent.click(screen.getByText("Clear all"));
       expect(mockReplace).toHaveBeenCalledWith("/contacts", expect.anything());
     });
 
     it("clears source filter when Clear all is clicked", () => {
-      currentParams = new URLSearchParams("source=gmail");
+      currentParams = new URLSearchParams("source=telegram");
       renderPage();
       fireEvent.click(screen.getByText("Clear all"));
       expect(mockReplace).toHaveBeenCalledWith("/contacts", expect.anything());

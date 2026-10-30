@@ -8,7 +8,7 @@ if TYPE_CHECKING:
 
 # Fields that sync should never overwrite if the user has edited them.
 PROTECTABLE_FIELDS = frozenset({
-    "full_name", "given_name", "family_name",
+    "full_name", "given_name", "family_name", "emails", "phones",
     "company", "title", "location",
     "tags", "notes", "birthday",
     "linkedin_headline", "twitter_handle",

@@ -6,6 +6,13 @@ from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from app.core.config import settings
+
+
+@pytest.fixture(autouse=True)
+def _enable_gmail_for_feature_tests(monkeypatch):
+    """Keep existing send-flow tests explicit about the opt-in feature flag."""
+    monkeypatch.setattr(settings, "GOOGLE_GMAIL_ENABLED", True)
 
 
 # ---------------------------------------------------------------------------
@@ -434,11 +441,22 @@ class TestScanAndSendMeetingPreps:
         from app.services.tasks import scan_meeting_preps
         assert callable(scan_meeting_preps)
 
-    def test_task_in_beat_schedule(self):
-        from app.core.celery_app import celery_app
-        schedule = celery_app.conf.beat_schedule
-        task_names = [v["task"] for v in schedule.values()]
-        assert "app.services.tasks.scan_meeting_preps" in task_names
+    @pytest.mark.parametrize("enabled", [True, False])
+    def test_mail_tasks_only_scheduled_when_enabled(self, enabled, monkeypatch):
+        import json
+        import subprocess
+        import sys
+
+        monkeypatch.setenv("GOOGLE_GMAIL_ENABLED", str(enabled).lower())
+        # Configuration is evaluated at process startup, before test fixtures.
+        output = subprocess.check_output([
+            sys.executable, "-c",
+            "import json; from app.core.celery_app import celery_app; "
+            "print(json.dumps([v['task'] for v in celery_app.conf.beat_schedule.values()]))",
+        ], text=True)
+        tasks = json.loads(output)
+        assert ("app.services.tasks.scan_meeting_preps" in tasks) is enabled
+        assert ("app.services.tasks.sync_gmail_all" in tasks) is enabled
 
 
 # ---------------------------------------------------------------------------

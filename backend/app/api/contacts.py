@@ -9,6 +9,8 @@ from app.api.contacts_routes.messaging import router as messaging_router
 from app.api.contacts_routes.map import router as map_router
 from app.api.contacts_routes.enrichment import router as enrichment_router
 from app.api.contacts_routes.bulk_ops import router as bulk_ops_router
+from app.api.contacts_routes.google import router as google_router
+from app.api.contacts_routes.google_labels import router as google_labels_router
 
 router = APIRouter()
 # CRITICAL: Include order matters — static routes BEFORE parameterized
@@ -19,6 +21,8 @@ router.include_router(imports_router)
 router.include_router(sync_router)
 router.include_router(map_router)
 router.include_router(bulk_ops_router)
+router.include_router(google_router)
+router.include_router(google_labels_router)
 router.include_router(crud_router)
 router.include_router(enrichment_router)
 router.include_router(duplicates_router)

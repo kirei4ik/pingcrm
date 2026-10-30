@@ -4,6 +4,7 @@ from app.models.detected_event import DetectedEvent
 from app.models.extension_pairing import ExtensionPairing
 from app.models.follow_up import FollowUpSuggestion
 from app.models.google_account import GoogleAccount
+from app.models.google_contact_link import GoogleContactLink
 from app.models.identity_match import IdentityMatch
 from app.models.interaction import Interaction
 from app.models.org_identity_match import OrgIdentityMatch
@@ -24,6 +25,7 @@ __all__ = [
     "DetectedEvent",
     "FollowUpSuggestion",
     "GoogleAccount",
+    "GoogleContactLink",
     "IdentityMatch",
     "Notification",
     "OrgIdentityMatch",

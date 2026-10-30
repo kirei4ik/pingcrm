@@ -8,6 +8,7 @@ import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { OrgListContent } from "./_components/OrgListContent";
 import { OrgPagination } from "./_components/OrgPagination";
+import { CompanyBackfillReview } from "./_components/company-backfill-review";
 
 // NOTE: route segment config (`export const dynamic`) belongs in layout.tsx —
 // Next.js ignores it in a "use client" module. See ./layout.tsx.
@@ -310,6 +311,8 @@ function OrganizationsPageContent() {
             Find duplicates
           </Link>
         </div>
+
+        <CompanyBackfillReview />
 
         <div className="mb-4">
           <div className="relative">

@@ -219,6 +219,35 @@ async def merge_contacts(
     contact_a.emails = _merge_list(contact_a.emails, contact_b.emails)
     contact_a.phones = _merge_list(contact_a.phones, contact_b.phones)
     contact_a.tags = _merge_list(contact_a.tags, contact_b.tags)
+    if not contact_a.birthday and contact_b.birthday:
+        contact_a.birthday = contact_b.birthday
+    if not contact_a.avatar_url and contact_b.avatar_url:
+        contact_a.avatar_url = contact_b.avatar_url
+    contact_a.user_edited_fields = list(dict.fromkeys(
+        list(contact_a.user_edited_fields or []) + list(contact_b.user_edited_fields or [])
+    ))
+    if not contact_a.organization_id and contact_b.organization_id:
+        contact_a.organization_id = contact_b.organization_id
+
+    # Keep all account-scoped Google provenance on the survivor. If duplicate
+    # imports created the same account/resource link twice, keep the newer one.
+    from app.models.google_contact_link import GoogleContactLink
+    links_result = await db.execute(select(GoogleContactLink).where(GoogleContactLink.contact_id == contact_b_id))
+    for link in links_result.scalars().all():
+        duplicate_result = await db.execute(select(GoogleContactLink).where(
+            GoogleContactLink.contact_id == contact_a_id,
+            GoogleContactLink.google_account_id == link.google_account_id,
+            GoogleContactLink.resource_name == link.resource_name,
+        ))
+        duplicate = duplicate_result.scalar_one_or_none()
+        if duplicate:
+            duplicate.etag = link.etag
+            duplicate.snapshot = link.snapshot
+            duplicate.labels = link.labels
+            duplicate.last_imported_at = link.last_imported_at
+            await db.delete(link)
+        else:
+            link.contact_id = contact_a_id
 
     # Clear unique-constrained fields on contact_b FIRST and flush, so that
     # copying values to contact_a doesn't violate uniqueness constraints

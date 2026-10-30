@@ -60,6 +60,7 @@ function ContactsPageContent() {
     priorityFilter,
     ghostedFilter,
     tagFilter,
+    googleLabelFilter,
     sourceFilter,
     interactionFrom,
     interactionTo,
@@ -122,6 +123,7 @@ function ContactsPageContent() {
           priorityFilter={priorityFilter}
           ghostedFilter={ghostedFilter}
           tagFilter={tagFilter}
+          googleLabelFilter={googleLabelFilter}
           sourceFilter={sourceFilter}
           interactionFrom={interactionFrom}
           interactionTo={interactionTo}

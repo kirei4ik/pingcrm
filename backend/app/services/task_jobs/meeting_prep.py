@@ -44,6 +44,9 @@ async def _scan_meeting_preps(db: AsyncSession, redis_client) -> dict:
     used synchronously for dedup checks — the call sites here are intentionally
     sync calls inside this async function, matching the original behaviour.
     """
+    if not settings.GOOGLE_GMAIL_ENABLED:
+        logger.info("Meeting prep email delivery skipped because Gmail integration is disabled")
+        return {"sent": 0, "skipped": 0, "errors": 0}
     now = datetime.now(UTC)
     window_start = now + timedelta(minutes=30)
     window_end = now + timedelta(minutes=40)
