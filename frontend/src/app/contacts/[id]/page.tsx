@@ -262,7 +262,7 @@ export default function ContactDetailPage() {
 
           {/* Sidebar (1/3) — DOM order 1, visual order 1 on desktop */}
           <div className="animate-in stagger-3 lg:col-span-1 lg:order-1 space-y-4">
-              <GoogleContactPanel contactId={id} displayName={displayName} crmBirthday={contact.birthday} />
+              <GoogleContactPanel contactId={id} displayName={displayName} crmBirthday={contact.birthday} crmTelegramUsername={contact.telegram_username} />
             {/* Mobile toggle — hidden on lg+ */}
             <button
               onClick={() => setSidebarOpen((v) => !v)}

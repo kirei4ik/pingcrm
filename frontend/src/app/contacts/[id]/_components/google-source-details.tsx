@@ -1,3 +1,4 @@
+import { googleTelegramUrl } from "@/hooks/use-google-contact";
 import type { components } from "@/lib/api-types";
 
 type Details = components["schemas"]["GoogleContactDetailsData"];
@@ -35,12 +36,17 @@ function safeUrl(value: string): string | null {
   return ["https:", "http:"].includes(url.protocol) ? url.href : null;
 }
 
-export function GoogleSourceDetails({ details, crmBirthday }: { details: Details; crmBirthday?: string | null }) {
+export function GoogleSourceDetails({ details, crmBirthday, crmTelegramUsername }: { details: Details; crmBirthday?: string | null; crmTelegramUsername?: string | null }) {
   const birthdays = details.birthdays.map(birthday).filter((item) => item !== null)
     .filter((item) => item.key !== crmBirthday && !(item.key.length === 5 && crmBirthday?.endsWith(item.key)));
   const notes = details.biographies.map((item) => text(item.value)).filter(Boolean);
   const addresses = details.addresses.map(address).filter(Boolean);
-  const links = details.urls.map((item) => ({ value: text(item.value), label: text(item.formattedType) || text(item.type) })).filter((item) => item.value);
+  const links = details.urls.map((item) => ({ value: text(item.value), label: text(item.formattedType) || text(item.type) })).filter((item) => item.value).filter((item) => {
+    const telegram = googleTelegramUrl(item.value);
+    if (!telegram) return true;
+    if (!crmTelegramUsername) return false; // Displayed in the existing Telegram row.
+    return new URL(telegram).pathname.replace(/^\/@?/, "").toLowerCase() !== crmTelegramUsername.replace(/^@/, "").toLowerCase();
+  });
   const fields = details.userDefined.map((item) => ({ key: text(item.key), value: text(item.value) })).filter((item) => item.value);
   if (![birthdays, notes, addresses, links, fields].some((items) => items.length)) return null;
   const heading = "text-[10px] font-semibold uppercase tracking-wide text-stone-400";

@@ -70,3 +70,28 @@ it("explains how to import a missing Google source instead of silently hiding ac
   expect(screen.getByRole("link", { name: "Open Google settings" })).toHaveAttribute("href", "/settings");
   expect(screen.queryByRole("button", { name: "Update in Google" })).not.toBeInTheDocument();
 });
+
+it("mounts the preview outside a transformed column and restores scrolling and focus", async () => {
+  mocks.get.mockResolvedValue({ data: { data: contact }, error: undefined });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  render(<QueryClientProvider client={queryClient}><div data-testid="animated-column" style={{ transform: "translateY(10px)" }}><GoogleContactPanel contactId="contact-1" displayName="Test Contact" /></div></QueryClientProvider>);
+  const trigger = await screen.findByRole("button", { name: "Update in Google" });
+  trigger.focus();
+  fireEvent.click(trigger);
+  const dialog = screen.getByRole("dialog");
+  expect(screen.getByTestId("animated-column")).not.toContainElement(dialog);
+  expect(dialog.parentElement?.parentElement).toBe(document.body);
+  expect(document.body.style.overflow).toBe("hidden");
+  expect(screen.getByRole("button", { name: "Load preview" })).toBeInTheDocument();
+  fireEvent.keyDown(document, { key: "Escape" });
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(document.body.style.overflow).not.toBe("hidden");
+  expect(trigger).toHaveFocus();
+});
+
+it("opens the provided direct Google contact address instead of search", async () => {
+  const target = "https://contacts.google.com/person/c7243330092283387933";
+  mocks.get.mockResolvedValue({ data: { data: { ...contact, links: [{ ...contact.links[0], google_url: target }] } } });
+  renderPanel();
+  expect(await screen.findByRole("link", { name: "Open in Google Contacts" })).toHaveAttribute("href", target);
+});

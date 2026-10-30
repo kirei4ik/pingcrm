@@ -5,6 +5,7 @@ import hashlib
 import asyncio
 import json
 import logging
+import re
 import uuid
 from datetime import UTC, datetime, timedelta
 from calendar import monthrange
@@ -269,6 +270,17 @@ async def _get_person(account: GoogleAccount, resource_name: str) -> dict[str, A
         raise GoogleExportError("Could not read the linked Google contact. Reconnect the account and try again.", 502) from exc
 
 
+def google_contact_url(snapshot: dict[str, Any], resource_name: str) -> str | None:
+    """Link canonical contact resources only, never profile IDs or guessed source conversions."""
+    contacts = [source for source in snapshot.get("metadata", {}).get("sources", []) if source.get("type") == "CONTACT"]
+    if len(contacts) != 1:
+        return None
+    match = re.fullmatch(r"people/(c[1-9][0-9]*)", resource_name)
+    if not match:
+        return None
+    return f"https://contacts.google.com/person/{match.group(1)}"
+
+
 async def read_contact(db: AsyncSession, user_id: uuid.UUID, contact_id: uuid.UUID) -> dict[str, Any]:
     result = await db.execute(
         select(GoogleContactLink, GoogleAccount).join(GoogleAccount, GoogleContactLink.google_account_id == GoogleAccount.id)
@@ -281,7 +293,7 @@ async def read_contact(db: AsyncSession, user_id: uuid.UUID, contact_id: uuid.UU
         can_write = WRITE_SCOPE in scopes and bool(link.etag)
         person = link.snapshot or {}
         links.append({"id": str(link.id), "account_email": account.email, "resource_name": link.resource_name,
-                      "labels": link.labels or [], "google_url": None, "can_write": can_write})
+                      "labels": link.labels or [], "google_url": google_contact_url(person, link.resource_name), "can_write": can_write})
         details.append({"link_id": str(link.id), "birthdays": person.get("birthdays", []),
                         "biographies": person.get("biographies", []), "addresses": person.get("addresses", []),
                         "urls": person.get("urls", []), "user_defined": person.get("userDefined", [])})

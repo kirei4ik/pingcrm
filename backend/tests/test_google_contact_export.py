@@ -264,3 +264,11 @@ def test_name_payload_matches_reviewed_full_name_when_crm_split_is_stale(test_co
     assert body["names"][0]["givenName"] == "New Complete Name"
     assert body["names"][0]["familyName"] == ""
     assert "displayName" not in body["names"][0]
+
+
+def test_direct_link_uses_contact_resource_id_and_never_profile_resource():
+    snapshot = {"metadata": {"sources": [{"type": "CONTACT", "id": "64857a579572e01d"}]}}
+    assert export.google_contact_url(snapshot, "people/c7243330092283387933") == "https://contacts.google.com/person/c7243330092283387933"
+    assert export.google_contact_url(snapshot, "people/7243330092283387933") is None
+    assert export.google_contact_url({"metadata": {"sources": [{"type": "PROFILE", "id": "123"}]}}, "people/c123") is None
+    assert export.google_contact_url(snapshot, "people/c123/../../evil") is None

@@ -795,4 +795,22 @@ describe("ContactDetailPage", () => {
     renderPage();
     expect(screen.getByText("Follow-up suggested")).toBeInTheDocument();
   });
+  it("shows an imported Telegram URL in Contact Details without duplicating it in Google links", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === "/api/v1/contacts/{contact_id}/google") return Promise.resolve({ data: { data: {
+        gmail_enabled: false,
+        links: [{ id: "source", account_email: "test@example.com", resource_name: "people/c123", labels: [], google_url: null, can_write: false }],
+        details: [{ link_id: "source", birthdays: [], biographies: [], addresses: [], urls: [{ value: "https://t.me/@id917913654", formattedType: "Telegram" }], userDefined: [] }],
+      } } });
+      return Promise.resolve(defaultGetResponse(url));
+    });
+    mockUseContact.mockReturnValue({ data: { data: { ...makeContact(), telegram_username: null } }, isLoading: false, isError: false });
+    renderPage();
+    const link = await screen.findByRole("link", { name: "https://t.me/@id917913654" });
+    expect(link).toHaveAttribute("title", "Imported from Google Contacts");
+    expect(screen.getAllByRole("link", { name: "https://t.me/@id917913654" })).toHaveLength(1);
+    expect(link.closest(".group\\/row")?.textContent).toContain("Telegram");
+  });
+
 });
