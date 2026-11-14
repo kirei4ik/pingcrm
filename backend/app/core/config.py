@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     TELEGRAM_API_ID: int = 0
     TELEGRAM_API_HASH: str = ""
 
+    # Optional SOCKS5 proxy for the Telegram (Telethon) client, in "host:port"
+    # form. Empty means the proxy is disabled. Username/password are optional.
+    TELEGRAM_SOCKS5_PROXY: str = ""
+    TELEGRAM_SOCKS5_USERNAME: str = ""
+    TELEGRAM_SOCKS5_PASSWORD: str = ""
+
     TWITTER_BEARER_TOKEN: str = ""
 
     APOLLO_API_KEY: str = ""
