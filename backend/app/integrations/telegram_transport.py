@@ -37,6 +37,41 @@ async def _set_rate_gate(user_id: str, seconds: int) -> None:
     await r.set(RATE_GATE_KEY.format(user_id=user_id), "1", ex=seconds)
 
 
+def _build_proxy(
+    proxy: str = "",
+    username: str = "",
+    password: str = "",
+) -> tuple | None:
+    """Build a python-socks proxy tuple for Telethon, or None when disabled.
+
+    ``proxy`` is ``"host:port"``; username/password are optional. The returned
+    tuple follows the format Telethon's connection layer expects:
+    ``(ProxyType.SOCKS5, host, port, rdns, username, password)``.
+    """
+    raw = (proxy or "").strip()
+    if not raw:
+        return None
+    host, sep, port_raw = raw.rpartition(":")
+    if not sep or not host:
+        raise ValueError(
+            f"Invalid TELEGRAM_SOCKS5_PROXY {raw!r}: expected 'host:port'"
+        )
+    try:
+        port = int(port_raw)
+    except ValueError:
+        raise ValueError(
+            f"Invalid TELEGRAM_SOCKS5_PROXY {raw!r}: port must be an integer"
+        ) from None
+    if not 0 < port < 65536:
+        raise ValueError(
+            f"Invalid TELEGRAM_SOCKS5_PROXY {raw!r}: port must be between 1 and 65535"
+        )
+    # Imported lazily so proxy-free deployments do not require python-socks.
+    from python_socks import ProxyType
+
+    return (ProxyType.SOCKS5, host, port, True, username or None, password or None)
+
+
 def _make_client(session_string: str | None = None) -> TelegramClient:
     """Construct a TelegramClient backed by a StringSession."""
     if not settings.TELEGRAM_API_ID or not settings.TELEGRAM_API_HASH:
@@ -45,10 +80,16 @@ def _make_client(session_string: str | None = None) -> TelegramClient:
             "TELEGRAM_API_HASH environment variables."
         )
     session = StringSession(session_string or "")
+    proxy = _build_proxy(
+        settings.TELEGRAM_SOCKS5_PROXY,
+        settings.TELEGRAM_SOCKS5_USERNAME,
+        settings.TELEGRAM_SOCKS5_PASSWORD,
+    )
     return TelegramClient(
         session,
         settings.TELEGRAM_API_ID,
         settings.TELEGRAM_API_HASH,
+        proxy=proxy,
     )
 
 

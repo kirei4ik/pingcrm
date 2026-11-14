@@ -6,7 +6,7 @@ import ContactDetailPage from "./page";
 /* ── API client mock ── */
 vi.mock("@/lib/api-client", () => ({
   client: {
-    GET: vi.fn().mockResolvedValue({ data: { data: [] } }),
+    GET: vi.fn((path: string) => Promise.resolve(defaultGetResponse(path))),
     POST: vi.fn().mockResolvedValue({ data: { data: {} } }),
     PUT: vi.fn().mockResolvedValue({ data: { data: {} } }),
     DELETE: vi.fn().mockResolvedValue({ data: { data: {} } }),
@@ -135,6 +135,16 @@ function makeContact(overrides: Record<string, unknown> = {}) {
     created_at: "2025-01-01T00:00:00Z",
     updated_at: null,
     ...overrides,
+  };
+}
+
+function defaultGetResponse(path: string) {
+  return {
+    data: {
+      data: path === "/api/v1/contacts/{contact_id}/google"
+        ? { gmail_enabled: false, links: [], details: [] }
+        : [],
+    },
   };
 }
 
@@ -548,7 +558,7 @@ describe("ContactDetailPage", () => {
           },
         });
       }
-      return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(defaultGetResponse(url));
     });
     renderPage();
     await waitFor(() => {
@@ -575,7 +585,7 @@ describe("ContactDetailPage", () => {
           },
         });
       }
-      return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(defaultGetResponse(url));
     });
     renderPage();
     await waitFor(() => {
@@ -660,7 +670,7 @@ describe("ContactDetailPage", () => {
           },
         });
       }
-      return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(defaultGetResponse(url));
     });
     renderPage();
     await waitFor(() => {
@@ -691,7 +701,7 @@ describe("ContactDetailPage", () => {
           },
         });
       }
-      return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(defaultGetResponse(url));
     });
     renderPage();
     await waitFor(() => {
@@ -720,7 +730,7 @@ describe("ContactDetailPage", () => {
           },
         });
       }
-      return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(defaultGetResponse(url));
     });
     renderPage();
     await waitFor(() => {
@@ -747,7 +757,7 @@ describe("ContactDetailPage", () => {
           },
         });
       }
-      return Promise.resolve({ data: { data: [] } });
+      return Promise.resolve(defaultGetResponse(url));
     });
     renderPage();
     await waitFor(() => {
@@ -785,4 +795,22 @@ describe("ContactDetailPage", () => {
     renderPage();
     expect(screen.getByText("Follow-up suggested")).toBeInTheDocument();
   });
+  it("shows an imported Telegram URL in Contact Details without duplicating it in Google links", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === "/api/v1/contacts/{contact_id}/google") return Promise.resolve({ data: { data: {
+        gmail_enabled: false,
+        links: [{ id: "source", account_email: "test@example.com", resource_name: "people/c123", labels: [], google_url: null, can_write: false }],
+        details: [{ link_id: "source", birthdays: [], biographies: [], addresses: [], urls: [{ value: "https://t.me/@id917913654", formattedType: "Telegram" }], userDefined: [] }],
+      } } });
+      return Promise.resolve(defaultGetResponse(url));
+    });
+    mockUseContact.mockReturnValue({ data: { data: { ...makeContact(), telegram_username: null } }, isLoading: false, isError: false });
+    renderPage();
+    const link = await screen.findByRole("link", { name: "https://t.me/@id917913654" });
+    expect(link).toHaveAttribute("title", "Imported from Google Contacts");
+    expect(screen.getAllByRole("link", { name: "https://t.me/@id917913654" })).toHaveLength(1);
+    expect(link.closest(".group\\/row")?.textContent).toContain("Telegram");
+  });
+
 });

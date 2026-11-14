@@ -97,7 +97,7 @@ describe("SettingsPage", () => {
   it("renders settings page after loading", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
   });
 
@@ -143,7 +143,8 @@ describe("SettingsPage", () => {
     expect(screen.getAllByText(/connected as/i).length).toBeGreaterThan(0);
   });
 
-  it("shows re-authorize option in kebab menu when already connected to Google", async () => {
+  it("offers additional Contacts permission when already connected to Google", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me")
         return Promise.resolve(mockMeResponse({ google_connected: true }));
@@ -152,9 +153,19 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
       expect(screen.getAllByText("Connected")).toHaveLength(1);
     });
+    expect(screen.getByRole("button", { name: "Allow contact updates" })).toBeInTheDocument();
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/google/url") return Promise.resolve({ data: { data: { url: "https://accounts.google.com/write" } }, error: null });
+      return Promise.resolve(mockMeResponse({ google_connected: true }));
+    });
+    await user.click(screen.getByRole("button", { name: "Allow contact updates" }));
+    await waitFor(() => expect(mockedClient.GET).toHaveBeenCalledWith(
+      "/api/v1/auth/google/url",
+      { params: { query: { write_contacts: true } } },
+    ));
   });
 
   // ─── ConnectionBadge ──────────────────────────────────────────────
@@ -162,7 +173,7 @@ describe("SettingsPage", () => {
   it("does not render ConnectionBadge when disconnected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
     expect(screen.queryAllByText("Connected")).toHaveLength(0);
   });
@@ -204,20 +215,17 @@ describe("SettingsPage", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
-      if (url === "/api/v1/auth/google/url")
-        return Promise.resolve({ data: { data: { url: "https://accounts.google.com/o/auth" } }, error: null });
+      if (url === "/api/v1/auth/google/url") return Promise.resolve({ data: { data: { url: "https://accounts.google.com/o/auth" } }, error: null });
       return Promise.resolve({ data: null, error: { detail: "unexpected" } });
     });
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
 
     // The Google card has a "Connect" button (not connected state)
-    const connectButtons = screen.getAllByText("Connect");
-    // Click the first Connect button (Gmail card)
-    await user.click(connectButtons[0]);
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
     await waitFor(() => {
       expect(window.location.href).toBe("https://accounts.google.com/o/auth");
     });
@@ -227,18 +235,16 @@ describe("SettingsPage", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
-      if (url === "/api/v1/auth/google/url")
-        return Promise.resolve({ data: { data: {} }, error: null });
+      if (url === "/api/v1/auth/google/url") return Promise.resolve({ data: { data: {} }, error: null });
       return Promise.resolve({ data: null, error: { detail: "unexpected" } });
     });
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
 
-    const connectButtons = screen.getAllByText("Connect");
-    await user.click(connectButtons[0]);
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
     await waitFor(() => {
       expect(screen.getByText(/Google OAuth not configured/)).toBeInTheDocument();
     });
@@ -248,18 +254,16 @@ describe("SettingsPage", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
-      if (url === "/api/v1/auth/google/url")
-        return Promise.resolve({ data: null, error: { detail: "network error" } });
+      if (url === "/api/v1/auth/google/url") return Promise.reject(new Error("network error"));
       return Promise.resolve({ data: null, error: { detail: "unexpected" } });
     });
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
 
-    const connectButtons = screen.getAllByText("Connect");
-    await user.click(connectButtons[0]);
+    await user.click(screen.getByRole("button", { name: "Connect Google" }));
     await waitFor(() => {
       expect(screen.getByText(/Google OAuth not configured/)).toBeInTheDocument();
     });
@@ -270,13 +274,10 @@ describe("SettingsPage", () => {
   it("sync now button is disabled when Google not connected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
-    // When not connected, the Google card shows "Connect" button, not "Sync now"
-    expect(screen.queryByText("Sync now")).not.toBeInTheDocument();
-    // The Connect button should be present but not a sync button
-    const connectButtons = screen.getAllByText("Connect");
-    expect(connectButtons.length).toBeGreaterThan(0);
+    expect(screen.queryByText("Sync contacts & calendar")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Connect Google" })).toBeInTheDocument();
   });
 
   it("syncs Google contacts successfully — shows Syncing... state", async () => {
@@ -289,7 +290,6 @@ describe("SettingsPage", () => {
     mockedClient.POST.mockImplementation((url: string) => {
       if (
         url === "/api/v1/contacts/sync/google" ||
-        url === "/api/v1/contacts/sync/gmail" ||
         url === "/api/v1/contacts/sync/google-calendar"
       )
         return Promise.resolve({ data: null, error: null });
@@ -298,15 +298,17 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync now")).toBeInTheDocument();
+      expect(screen.getByText("Sync contacts & calendar")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync now"));
+    await user.click(screen.getByText("Sync contacts & calendar"));
     await waitFor(() => {
       // After sync, POST was called with the google endpoint
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
+      expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google-calendar");
+      expect(mockedClient.POST.mock.calls.some(([url]) => url === "/api/v1/contacts/sync/gmail")).toBe(false);
       // Button shows syncing state (stays loading while polling for notification)
-      expect(screen.getByText("Syncing...")).toBeInTheDocument();
+      expect(screen.getByText("Syncing…")).toBeInTheDocument();
     });
   });
 
@@ -325,14 +327,14 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync now")).toBeInTheDocument();
+      expect(screen.getByText("Sync contacts & calendar")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync now"));
+    await user.click(screen.getByText("Sync contacts & calendar"));
     await waitFor(() => {
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
       // After error, button returns to idle (not disabled)
-      expect(screen.getByText("Sync now").closest("button")).not.toBeDisabled();
+      expect(screen.getByText("Sync contacts & calendar").closest("button")).not.toBeDisabled();
     });
   });
 
@@ -351,13 +353,13 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync now")).toBeInTheDocument();
+      expect(screen.getByText("Sync contacts & calendar")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync now"));
+    await user.click(screen.getByText("Sync contacts & calendar"));
     await waitFor(() => {
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
-      expect(screen.getByText("Sync now").closest("button")).not.toBeDisabled();
+      expect(screen.getByText("Sync contacts & calendar").closest("button")).not.toBeDisabled();
     });
   });
 
@@ -1040,7 +1042,7 @@ describe("SettingsPage", () => {
   it("defaults to Integrations tab and shows platform cards", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
     expect(screen.getByText("Telegram")).toBeInTheDocument();
     expect(screen.getByText("Twitter / X — DMs")).toBeInTheDocument();
@@ -1102,7 +1104,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
 
     await user.click(screen.getByText("Import"));
@@ -1120,7 +1122,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
 
     await user.click(screen.getByText("Follow-up Rules"));
@@ -1134,7 +1136,7 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
   });
 
@@ -1143,10 +1145,10 @@ describe("SettingsPage", () => {
   it("shows Not connected badge for each platform when disconnected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getByText("Google Contacts & Calendar")).toBeInTheDocument();
     });
     const notConnected = screen.getAllByText("Not connected");
-    expect(notConnected).toHaveLength(6); // Gmail, Telegram, Twitter, LinkedIn, WhatsApp, Meta
+    expect(notConnected).toHaveLength(6); // Google, Telegram, Twitter, LinkedIn, WhatsApp, Meta
   });
 
   it("shows connected-as username for Telegram when connected", async () => {

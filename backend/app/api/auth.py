@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import timedelta
 
@@ -14,7 +15,7 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import client_ip, enforce_rate_limit
 from app.core.redis import get_redis
-from app.integrations.google_auth import build_oauth_url, exchange_code
+from app.integrations.google_auth import CONTACTS_READ_SCOPE, CONTACTS_WRITE_SCOPE, build_oauth_url, exchange_code
 from app.models.user import User
 from app.schemas.responses import (
     DeletedData,
@@ -33,9 +34,11 @@ router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 _GOOGLE_STATE_TTL_SECONDS = 600  # 10 minutes
 
 
-async def _store_google_state(state: str, user_id: str | None) -> None:
+async def _store_google_state(state: str, user_id: str | None, write_contacts: bool = False) -> None:
     r = get_redis()
-    await r.setex(f"oauth_state:{state}", _GOOGLE_STATE_TTL_SECONDS, user_id or "__anonymous__")
+    await r.setex(f"oauth_state:{state}", _GOOGLE_STATE_TTL_SECONDS, json.dumps({
+        "user_id": user_id or "__anonymous__", "write_contacts": write_contacts,
+    }))
 
 
 async def _pop_google_state(state: str) -> str | None:
@@ -205,6 +208,7 @@ async def remove_google_account(
 
 @router.get("/google/url", response_model=Envelope[OAuthUrlData])
 async def google_oauth_url(
+    write_contacts: bool = False,
     current_user: User = Depends(get_current_user),
 ) -> Envelope[OAuthUrlData]:
     """Return the Google OAuth consent screen URL."""
@@ -213,8 +217,8 @@ async def google_oauth_url(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env",
         )
-    url, state = build_oauth_url(redirect_uri=settings.GOOGLE_REDIRECT_URI)
-    await _store_google_state(state, str(current_user.id))
+    url, state = build_oauth_url(redirect_uri=settings.GOOGLE_REDIRECT_URI, write_contacts=write_contacts)
+    await _store_google_state(state, str(current_user.id), write_contacts=write_contacts)
     return {"data": {"url": url, "state": state}, "error": None}
 
 
@@ -255,15 +259,21 @@ async def google_callback(
     # the state was bound to their user_id. If the callback arrives with a
     # different (or absent) authenticated user, reject the request to prevent
     # account-binding hijack via a leaked state token.
-    if popped != "__anonymous__":
-        if caller is None or str(caller.id) != popped:
+    try:
+        state_data = json.loads(popped)
+    except (json.JSONDecodeError, TypeError):
+        state_data = {"user_id": popped, "write_contacts": False}
+    state_user_id = state_data.get("user_id", "__anonymous__")
+    write_contacts = bool(state_data.get("write_contacts"))
+    if state_user_id != "__anonymous__":
+        if caller is None or str(caller.id) != state_user_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Authenticated user does not match the OAuth state",
             )
 
     try:
-        tokens = exchange_code(payload.code)
+        tokens = exchange_code(payload.code, write_contacts=write_contacts)
     except Exception as exc:
         logger.error("Google code exchange failed: %s", exc, exc_info=True)
         raise HTTPException(
@@ -292,45 +302,62 @@ async def google_callback(
             detail="Google account does not provide an email address",
         )
 
+    granted_scopes = list(tokens.get("granted_scopes") or [])
+    required_scopes = {"https://www.googleapis.com/auth/calendar.readonly"}
+    required_scopes.add(CONTACTS_WRITE_SCOPE if write_contacts else CONTACTS_READ_SCOPE)
+    if not granted_scopes or not required_scopes.issubset(set(granted_scopes)):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Google did not grant the required Contacts and Calendar permissions. Please reconnect and approve them.",
+        )
+
     from app.models.google_account import GoogleAccount
 
-    result = await db.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
-
-    if user is None:
-        import secrets
-
-        full_name: str | None = id_info.get("name")
-        user = User(
-            email=email,
-            hashed_password=hash_password(secrets.token_urlsafe(32)),
-            full_name=full_name,
-            google_refresh_token=tokens.get("refresh_token"),
-        )
-        db.add(user)
-        await db.flush()
+    # A connect-account flow stays attached to the CRM caller even when the
+    # connected Google identity has a different email address.
+    if state_user_id != "__anonymous__":
+        user = caller
+        assert user is not None
     else:
-        if tokens.get("refresh_token"):
+        result = await db.execute(select(User).where(User.email == email))
+        user = result.scalar_one_or_none()
+        if user is None:
+            import secrets
+
+            full_name: str | None = id_info.get("name")
+            user = User(
+                email=email,
+                hashed_password=hash_password(secrets.token_urlsafe(32)),
+                full_name=full_name,
+                google_refresh_token=tokens.get("refresh_token"),
+            )
+            db.add(user)
+            await db.flush()
+        elif tokens.get("refresh_token"):
             user.google_refresh_token = tokens["refresh_token"]
 
     # Upsert GoogleAccount entry for this email
     google_email: str = id_info.get("email", email)
-    if tokens.get("refresh_token"):
-        ga_result = await db.execute(
-            select(GoogleAccount).where(
-                GoogleAccount.user_id == user.id,
-                GoogleAccount.email == google_email,
-            )
+    ga_result = await db.execute(
+        select(GoogleAccount).where(
+            GoogleAccount.user_id == user.id,
+            GoogleAccount.email == google_email,
         )
-        ga = ga_result.scalar_one_or_none()
-        if ga:
+    )
+    ga = ga_result.scalar_one_or_none()
+    if ga:
+        if tokens.get("refresh_token"):
             ga.refresh_token = tokens["refresh_token"]
-        else:
-            db.add(GoogleAccount(
-                user_id=user.id,
-                email=google_email,
-                refresh_token=tokens["refresh_token"],
-            ))
+        ga.granted_scopes = granted_scopes
+    elif tokens.get("refresh_token"):
+        db.add(GoogleAccount(
+            user_id=user.id,
+            email=google_email,
+            refresh_token=tokens["refresh_token"],
+            granted_scopes=granted_scopes,
+        ))
+    else:
+        raise HTTPException(status_code=400, detail="Google did not provide a refresh token. Reconnect with offline access.")
 
     from app.models.notification import Notification
 

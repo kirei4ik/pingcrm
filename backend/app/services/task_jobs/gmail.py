@@ -14,6 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import Provider
+from app.core.config import settings
 from app.core.database import task_session
 from app.integrations.gmail import sync_gmail_for_user as _gmail_sync
 from app.models.contact import Contact
@@ -34,6 +35,9 @@ async def _sync_gmail(db: AsyncSession, uid: uuid.UUID) -> dict:
     Returns ``{"status": ..., "new_interactions": ...}``. Records sync history
     and re-raises on integration errors so the Celery wrapper can retry.
     """
+    if not settings.GOOGLE_GMAIL_ENABLED:
+        logger.info("Gmail sync skipped because Gmail integration is disabled")
+        return {"status": "disabled", "new_interactions": 0}
     result = await db.execute(select(User).where(User.id == uid))
     user = result.scalar_one_or_none()
     if user is None:
@@ -85,6 +89,8 @@ async def _sync_gmail(db: AsyncSession, uid: uuid.UUID) -> dict:
 
 async def _collect_gmail_user_ids(db: AsyncSession) -> list[str]:
     """User IDs eligible for the beat-scheduled ``sync_gmail_all`` task."""
+    if not settings.GOOGLE_GMAIL_ENABLED:
+        return []
     result = await db.execute(
         select(User.id).where(User.google_refresh_token.isnot(None))
     )

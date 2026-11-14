@@ -578,6 +578,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/contacts/{contact_id}/google": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Google Contact Details */
+        get: operations["get_google_contact_details_api_v1_contacts__contact_id__google_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contacts/{contact_id}/google/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Google Contact Export */
+        post: operations["preview_google_contact_export_api_v1_contacts__contact_id__google_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contacts/{contact_id}/google/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Google Contact Export */
+        post: operations["apply_google_contact_export_api_v1_contacts__contact_id__google_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/contacts/google-labels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Google Labels */
+        get: operations["list_google_labels_api_v1_contacts_google_labels_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/contacts/{contact_id}": {
         parameters: {
             query?: never;
@@ -1596,6 +1664,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organizations/company-backfill/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Preview Company Backfill
+         * @description Preview exact-company assignments for contacts without a manual org link.
+         */
+        get: operations["preview_company_backfill_api_v1_organizations_company_backfill_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organizations/company-backfill/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Apply Company Backfill
+         * @description Link unassigned contacts by exact company name after preview.
+         */
+        post: operations["apply_company_backfill_api_v1_organizations_company_backfill_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organizations/merge": {
         parameters: {
             query?: never;
@@ -2275,6 +2383,27 @@ export interface components {
             /** Company */
             company?: string | null;
         };
+        /** CompanyBackfillGroup */
+        CompanyBackfillGroup: {
+            /** Name */
+            name: string;
+            /** Contact Ids */
+            contact_ids: string[];
+            /** Organization Id */
+            organization_id?: string | null;
+            /** Organization Name */
+            organization_name?: string | null;
+        };
+        /** CompanyBackfillRequest */
+        CompanyBackfillRequest: {
+            /** Reviewed Groups */
+            reviewed_groups: components["schemas"]["CompanyBackfillGroup"][];
+        };
+        /** CompanyBackfillResult */
+        CompanyBackfillResult: {
+            /** Contacts Linked */
+            contacts_linked: number;
+        };
         /** ComposeBody */
         ComposeBody: {
             /**
@@ -2749,6 +2878,16 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Envelope[CompanyBackfillResult] */
+        Envelope_CompanyBackfillResult_: {
+            data?: components["schemas"]["CompanyBackfillResult"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** Envelope[ContactResponse] */
         Envelope_ContactResponse_: {
             data?: components["schemas"]["ContactResponse"] | null;
@@ -2812,6 +2951,36 @@ export interface components {
         /** Envelope[FollowUpResponse] */
         Envelope_FollowUpResponse_: {
             data?: components["schemas"]["FollowUpResponse"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[GoogleContactReadData] */
+        Envelope_GoogleContactReadData_: {
+            data?: components["schemas"]["GoogleContactReadData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[GoogleExportApplyData] */
+        Envelope_GoogleExportApplyData_: {
+            data?: components["schemas"]["GoogleExportApplyData"] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[GoogleExportPreviewData] */
+        Envelope_GoogleExportPreviewData_: {
+            data?: components["schemas"]["GoogleExportPreviewData"] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -3273,6 +3442,17 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Envelope[list[CompanyBackfillGroup]] */
+        Envelope_list_CompanyBackfillGroup__: {
+            /** Data */
+            data?: components["schemas"]["CompanyBackfillGroup"][] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
         /** Envelope[list[ContactMapPin]] */
         Envelope_list_ContactMapPin__: {
             /** Data */
@@ -3310,6 +3490,17 @@ export interface components {
         Envelope_list_GoogleAccountData__: {
             /** Data */
             data?: components["schemas"]["GoogleAccountData"][] | null;
+            /** Error */
+            error?: string | null;
+            /** Meta */
+            meta?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** Envelope[list[GoogleLabelData]] */
+        Envelope_list_GoogleLabelData__: {
+            /** Data */
+            data?: components["schemas"]["app__api__contacts_routes__google_labels__GoogleLabelData"][] | null;
             /** Error */
             error?: string | null;
             /** Meta */
@@ -3456,6 +3647,106 @@ export interface components {
             code: string;
             /** State */
             state?: string | null;
+        };
+        /** GoogleContactDetailsData */
+        GoogleContactDetailsData: {
+            /** Link Id */
+            link_id: string;
+            /** Birthdays */
+            birthdays: {
+                [key: string]: unknown;
+            }[];
+            /** Biographies */
+            biographies: {
+                [key: string]: unknown;
+            }[];
+            /** Addresses */
+            addresses: {
+                [key: string]: unknown;
+            }[];
+            /** Urls */
+            urls: {
+                [key: string]: unknown;
+            }[];
+            /** Userdefined */
+            userDefined: {
+                [key: string]: unknown;
+            }[];
+        };
+        /** GoogleContactLinkData */
+        GoogleContactLinkData: {
+            /** Id */
+            id: string;
+            /** Account Email */
+            account_email: string;
+            /** Resource Name */
+            resource_name: string;
+            /** Labels */
+            labels: components["schemas"]["app__schemas__google_contacts__GoogleLabelData"][];
+            /** Google Url */
+            google_url?: string | null;
+            /** Can Write */
+            can_write: boolean;
+        };
+        /** GoogleContactReadData */
+        GoogleContactReadData: {
+            /** Gmail Enabled */
+            gmail_enabled: boolean;
+            /** Links */
+            links: components["schemas"]["GoogleContactLinkData"][];
+            /** Details */
+            details: components["schemas"]["GoogleContactDetailsData"][];
+        };
+        /** GoogleExportApplyData */
+        GoogleExportApplyData: {
+            /** Status */
+            status: string;
+            /** Updated Fields */
+            updated_fields: string[];
+        };
+        /** GoogleExportApplyRequest */
+        GoogleExportApplyRequest: {
+            /** Preview Id */
+            preview_id: string;
+            /** Fields */
+            fields: string[];
+        };
+        /** GoogleExportChange */
+        GoogleExportChange: {
+            /** Field */
+            field: string;
+            /** Label */
+            label: string;
+            /** Current */
+            current?: unknown;
+            /** Proposed */
+            proposed?: unknown;
+            /**
+             * Selected By Default
+             * @default false
+             */
+            selected_by_default: boolean;
+        };
+        /** GoogleExportPreviewData */
+        GoogleExportPreviewData: {
+            /** Preview Id */
+            preview_id: string;
+            /** Account Email */
+            account_email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Changes */
+            changes: components["schemas"]["GoogleExportChange"][];
+            /** Can Write */
+            can_write: boolean;
+        };
+        /** GoogleExportPreviewRequest */
+        GoogleExportPreviewRequest: {
+            /** Link Id */
+            link_id: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -4521,6 +4812,22 @@ export interface components {
             /** Status */
             status: string;
         };
+        /** GoogleLabelData */
+        app__api__contacts_routes__google_labels__GoogleLabelData: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Account Email */
+            account_email: string;
+        };
+        /** GoogleLabelData */
+        app__schemas__google_contacts__GoogleLabelData: {
+            /** Resource Name */
+            resource_name: string;
+            /** Name */
+            name: string;
+        };
     };
     responses: never;
     parameters: never;
@@ -4675,6 +4982,8 @@ export interface operations {
                 search?: string | null;
                 tag?: string | null;
                 source?: string | null;
+                /** @description Google account UUID:contactGroups/group ID */
+                google_label?: string | null;
                 /** @description Filter by score tier: strong (8-10), active (4-7), dormant (0-3) */
                 score?: string | null;
                 /** @description Filter contacts created on or after this date (YYYY-MM-DD) */
@@ -4766,6 +5075,7 @@ export interface operations {
                 search?: string | null;
                 tag?: string | null;
                 source?: string | null;
+                google_label?: string | null;
                 score?: string | null;
                 priority?: string | null;
                 date_from?: string | null;
@@ -5387,6 +5697,127 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_dict_"];
+                };
+            };
+        };
+    };
+    get_google_contact_details_api_v1_contacts__contact_id__google_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_GoogleContactReadData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_google_contact_export_api_v1_contacts__contact_id__google_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleExportPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_GoogleExportPreviewData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_google_contact_export_api_v1_contacts__contact_id__google_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleExportApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_GoogleExportApplyData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_google_labels_api_v1_contacts_google_labels_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_GoogleLabelData__"];
                 };
             };
         };
@@ -6137,7 +6568,9 @@ export interface operations {
     };
     google_oauth_url_api_v1_auth_google_url_get: {
         parameters: {
-            query?: never;
+            query?: {
+                write_contacts?: boolean;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -6151,6 +6584,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_OAuthUrlData_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -7005,6 +7447,59 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Envelope_OrganizationResponse_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_company_backfill_api_v1_organizations_company_backfill_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_list_CompanyBackfillGroup__"];
+                };
+            };
+        };
+    };
+    apply_company_backfill_api_v1_organizations_company_backfill_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompanyBackfillRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope_CompanyBackfillResult_"];
                 };
             };
             /** @description Validation Error */

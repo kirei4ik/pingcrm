@@ -23,6 +23,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.constants import Provider
+from app.core.config import settings
 from app.models.contact import Contact
 from app.models.sync_event import SyncEvent
 from app.models.user import User
@@ -32,6 +33,12 @@ from app.services.task_jobs.gmail import (
     sync_gmail_all,
     sync_gmail_for_user,
 )
+
+
+@pytest.fixture(autouse=True)
+def _enable_gmail_for_feature_tests(monkeypatch):
+    """These tests exercise Gmail behavior with the feature explicitly enabled."""
+    monkeypatch.setattr(settings, "GOOGLE_GMAIL_ENABLED", True)
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +275,16 @@ async def test_collect_gmail_user_ids_returns_only_users_with_refresh_token(
     ids = await _collect_gmail_user_ids(db)
     assert str(with_token.id) in ids
     assert str(test_user.id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_gmail_jobs_skip_provider_access_when_disabled(db: AsyncSession, monkeypatch):
+    monkeypatch.setattr(settings, "GOOGLE_GMAIL_ENABLED", False)
+    with patch("app.services.task_jobs.gmail._gmail_sync", new=AsyncMock()) as mock_sync:
+        result = await _sync_gmail(db, uuid.uuid4())
+    assert result == {"status": "disabled", "new_interactions": 0}
+    mock_sync.assert_not_awaited()
+    assert await _collect_gmail_user_ids(db) == []
 
 
 # ---------------------------------------------------------------------------

@@ -285,6 +285,24 @@
             }
           },
           {
+            "name": "google_label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Google account UUID:contactGroups/group ID",
+              "title": "Google Label"
+            },
+            "description": "Google account UUID:contactGroups/group ID"
+          },
+          {
             "name": "score",
             "in": "query",
             "required": false,
@@ -630,6 +648,22 @@
                 }
               ],
               "title": "Source"
+            }
+          },
+          {
+            "name": "google_label",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Google Label"
             }
           },
           {
@@ -1728,6 +1762,193 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Envelope_dict_"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/contacts/{contact_id}/google": {
+      "get": {
+        "tags": [
+          "contacts"
+        ],
+        "summary": "Get Google Contact Details",
+        "operationId": "get_google_contact_details_api_v1_contacts__contact_id__google_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contact Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_GoogleContactReadData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contacts/{contact_id}/google/preview": {
+      "post": {
+        "tags": [
+          "contacts"
+        ],
+        "summary": "Preview Google Contact Export",
+        "operationId": "preview_google_contact_export_api_v1_contacts__contact_id__google_preview_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contact Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleExportPreviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_GoogleExportPreviewData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contacts/{contact_id}/google/apply": {
+      "post": {
+        "tags": [
+          "contacts"
+        ],
+        "summary": "Apply Google Contact Export",
+        "operationId": "apply_google_contact_export_api_v1_contacts__contact_id__google_apply_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "contact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contact Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleExportApplyRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_GoogleExportApplyData_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contacts/google-labels": {
+      "get": {
+        "tags": [
+          "contacts"
+        ],
+        "summary": "List Google Labels",
+        "operationId": "list_google_labels_api_v1_contacts_google_labels_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_GoogleLabelData__"
                 }
               }
             }
@@ -2939,6 +3160,23 @@
         "summary": "Google Oauth Url",
         "description": "Return the Google OAuth consent screen URL.",
         "operationId": "google_oauth_url_api_v1_auth_google_url_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "write_contacts",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Write Contacts"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2949,13 +3187,18 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/auth/google/callback": {
@@ -4278,6 +4521,80 @@
             }
           }
         }
+      }
+    },
+    "/api/v1/organizations/company-backfill/preview": {
+      "get": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Preview Company Backfill",
+        "description": "Preview exact-company assignments for contacts without a manual org link.",
+        "operationId": "preview_company_backfill_api_v1_organizations_company_backfill_preview_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_list_CompanyBackfillGroup__"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/organizations/company-backfill/apply": {
+      "post": {
+        "tags": [
+          "organizations"
+        ],
+        "summary": "Apply Company Backfill",
+        "description": "Link unassigned contacts by exact company name after preview.",
+        "operationId": "apply_company_backfill_api_v1_organizations_company_backfill_apply_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyBackfillRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Envelope_CompanyBackfillResult_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
       }
     },
     "/api/v1/organizations/merge": {
@@ -6175,6 +6492,78 @@
         ],
         "title": "BulkUpdateBody"
       },
+      "CompanyBackfillGroup": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "contact_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Contact Ids"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "organization_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "contact_ids"
+        ],
+        "title": "CompanyBackfillGroup"
+      },
+      "CompanyBackfillRequest": {
+        "properties": {
+          "reviewed_groups": {
+            "items": {
+              "$ref": "#/components/schemas/CompanyBackfillGroup"
+            },
+            "type": "array",
+            "title": "Reviewed Groups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reviewed_groups"
+        ],
+        "title": "CompanyBackfillRequest"
+      },
+      "CompanyBackfillResult": {
+        "properties": {
+          "contacts_linked": {
+            "type": "integer",
+            "title": "Contacts Linked"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contacts_linked"
+        ],
+        "title": "CompanyBackfillResult"
+      },
       "ComposeBody": {
         "properties": {
           "channel": {
@@ -7972,6 +8361,45 @@
         "type": "object",
         "title": "Envelope[BioRefreshData]"
       },
+      "Envelope_CompanyBackfillResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CompanyBackfillResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[CompanyBackfillResult]"
+      },
       "Envelope_ContactResponse_": {
         "properties": {
           "data": {
@@ -8244,6 +8672,123 @@
         },
         "type": "object",
         "title": "Envelope[FollowUpResponse]"
+      },
+      "Envelope_GoogleContactReadData_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleContactReadData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[GoogleContactReadData]"
+      },
+      "Envelope_GoogleExportApplyData_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleExportApplyData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[GoogleExportApplyData]"
+      },
+      "Envelope_GoogleExportPreviewData_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleExportPreviewData"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[GoogleExportPreviewData]"
       },
       "Envelope_IdentityMatchData_": {
         "properties": {
@@ -10004,6 +10549,49 @@
         "type": "object",
         "title": "Envelope[list]"
       },
+      "Envelope_list_CompanyBackfillGroup__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CompanyBackfillGroup"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[list[CompanyBackfillGroup]]"
+      },
       "Envelope_list_ContactMapPin__": {
         "properties": {
           "data": {
@@ -10175,6 +10763,49 @@
         },
         "type": "object",
         "title": "Envelope[list[GoogleAccountData]]"
+      },
+      "Envelope_list_GoogleLabelData__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/app__api__contacts_routes__google_labels__GoogleLabelData"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "meta": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta"
+          }
+        },
+        "type": "object",
+        "title": "Envelope[list[GoogleLabelData]]"
       },
       "Envelope_list_IdentityMatchData__": {
         "properties": {
@@ -10670,6 +11301,261 @@
           "code"
         ],
         "title": "GoogleCallbackRequest"
+      },
+      "GoogleContactDetailsData": {
+        "properties": {
+          "link_id": {
+            "type": "string",
+            "title": "Link Id"
+          },
+          "birthdays": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Birthdays"
+          },
+          "biographies": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Biographies"
+          },
+          "addresses": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Addresses"
+          },
+          "urls": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Urls"
+          },
+          "userDefined": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Userdefined"
+          }
+        },
+        "type": "object",
+        "required": [
+          "link_id",
+          "birthdays",
+          "biographies",
+          "addresses",
+          "urls",
+          "userDefined"
+        ],
+        "title": "GoogleContactDetailsData"
+      },
+      "GoogleContactLinkData": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "account_email": {
+            "type": "string",
+            "title": "Account Email"
+          },
+          "resource_name": {
+            "type": "string",
+            "title": "Resource Name"
+          },
+          "labels": {
+            "items": {
+              "$ref": "#/components/schemas/app__schemas__google_contacts__GoogleLabelData"
+            },
+            "type": "array",
+            "title": "Labels"
+          },
+          "google_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Google Url"
+          },
+          "can_write": {
+            "type": "boolean",
+            "title": "Can Write"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "account_email",
+          "resource_name",
+          "labels",
+          "can_write"
+        ],
+        "title": "GoogleContactLinkData"
+      },
+      "GoogleContactReadData": {
+        "properties": {
+          "gmail_enabled": {
+            "type": "boolean",
+            "title": "Gmail Enabled"
+          },
+          "links": {
+            "items": {
+              "$ref": "#/components/schemas/GoogleContactLinkData"
+            },
+            "type": "array",
+            "title": "Links"
+          },
+          "details": {
+            "items": {
+              "$ref": "#/components/schemas/GoogleContactDetailsData"
+            },
+            "type": "array",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "gmail_enabled",
+          "links",
+          "details"
+        ],
+        "title": "GoogleContactReadData"
+      },
+      "GoogleExportApplyData": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "updated_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Updated Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "updated_fields"
+        ],
+        "title": "GoogleExportApplyData"
+      },
+      "GoogleExportApplyRequest": {
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "title": "Preview Id"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fields"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preview_id",
+          "fields"
+        ],
+        "title": "GoogleExportApplyRequest"
+      },
+      "GoogleExportChange": {
+        "properties": {
+          "field": {
+            "type": "string",
+            "title": "Field"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "current": {
+            "title": "Current"
+          },
+          "proposed": {
+            "title": "Proposed"
+          },
+          "selected_by_default": {
+            "type": "boolean",
+            "title": "Selected By Default",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "field",
+          "label"
+        ],
+        "title": "GoogleExportChange"
+      },
+      "GoogleExportPreviewData": {
+        "properties": {
+          "preview_id": {
+            "type": "string",
+            "title": "Preview Id"
+          },
+          "account_email": {
+            "type": "string",
+            "title": "Account Email"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/GoogleExportChange"
+            },
+            "type": "array",
+            "title": "Changes"
+          },
+          "can_write": {
+            "type": "boolean",
+            "title": "Can Write"
+          }
+        },
+        "type": "object",
+        "required": [
+          "preview_id",
+          "account_email",
+          "expires_at",
+          "changes",
+          "can_write"
+        ],
+        "title": "GoogleExportPreviewData"
+      },
+      "GoogleExportPreviewRequest": {
+        "properties": {
+          "link_id": {
+            "type": "string",
+            "title": "Link Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "link_id"
+        ],
+        "title": "GoogleExportPreviewRequest"
       },
       "HTTPValidationError": {
         "properties": {
@@ -13717,6 +14603,47 @@
           "status"
         ],
         "title": "WhatsAppStatusData"
+      },
+      "app__api__contacts_routes__google_labels__GoogleLabelData": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "account_email": {
+            "type": "string",
+            "title": "Account Email"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "account_email"
+        ],
+        "title": "GoogleLabelData"
+      },
+      "app__schemas__google_contacts__GoogleLabelData": {
+        "properties": {
+          "resource_name": {
+            "type": "string",
+            "title": "Resource Name"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "resource_name",
+          "name"
+        ],
+        "title": "GoogleLabelData"
       }
     },
     "securitySchemes": {

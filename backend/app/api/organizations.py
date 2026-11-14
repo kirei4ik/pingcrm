@@ -27,6 +27,9 @@ from app.schemas.organization import (
     OrganizationListMeta,
     OrganizationResponse,
     OrganizationUpdate,
+    CompanyBackfillGroup,
+    CompanyBackfillResult,
+    CompanyBackfillRequest,
 )
 
 logger = logging.getLogger(__name__)
@@ -162,7 +165,6 @@ async def list_organizations(
         .correlate(None)
         .scalar_subquery()
     )
-
     stmt = (
         select(Organization)
         .where(
@@ -209,6 +211,29 @@ async def list_organizations(
             "total_pages": total_pages,
         },
     )
+
+
+@router.get("/company-backfill/preview", response_model=Envelope[list[CompanyBackfillGroup]])
+async def preview_company_backfill(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Preview exact-company assignments for contacts without a manual org link."""
+    from app.services.google_contact_import import preview_company_backfill as build_preview
+    return _envelope(await build_preview(db, current_user.id))
+
+
+@router.post("/company-backfill/apply", response_model=Envelope[CompanyBackfillResult])
+async def apply_company_backfill(
+    payload: CompanyBackfillRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Link unassigned contacts by exact company name after preview."""
+    from app.services.google_contact_import import apply_company_backfill as apply_backfill
+    result = await apply_backfill(db, current_user.id, [group.model_dump() for group in payload.reviewed_groups])
+    await db.flush()
+    return _envelope(result)
 
 
 # ---------------------------------------------------------------------------

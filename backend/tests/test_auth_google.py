@@ -7,6 +7,10 @@ from httpx import AsyncClient
 
 
 _fake_redis_instance = None
+_READ_SCOPES = [
+    "https://www.googleapis.com/auth/contacts.readonly",
+    "https://www.googleapis.com/auth/calendar.readonly",
+]
 
 
 @pytest.fixture(autouse=True)
@@ -103,7 +107,7 @@ async def test_google_callback_invalid_state(client: AsyncClient):
 async def test_google_callback_state_consumed_once(client: AsyncClient):
     """State nonce is consumed on first use and cannot be replayed."""
     state = await _inject_state("one-time-state")
-    mock_tokens = {"id_token": "fake", "refresh_token": "ref"}
+    mock_tokens = {"id_token": "fake", "refresh_token": "ref", "granted_scopes": _READ_SCOPES}
     id_info = {"email": "onetime@example.com", "name": "One Time", "sub": "789"}
 
     with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
@@ -139,7 +143,7 @@ async def test_google_callback_exchange_fails(client: AsyncClient):
 async def test_google_callback_invalid_id_token(client: AsyncClient):
     """POST /auth/google/callback returns 400 when id_token verification fails."""
     state = await _inject_state("invalid-token-state")
-    mock_tokens = {"id_token": "fake", "refresh_token": "ref"}
+    mock_tokens = {"id_token": "fake", "refresh_token": "ref", "granted_scopes": _READ_SCOPES}
     with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
          patch("app.api.auth.google_id_token.verify_oauth2_token", side_effect=ValueError("bad token")):
         resp = await client.post(
@@ -154,7 +158,7 @@ async def test_google_callback_invalid_id_token(client: AsyncClient):
 async def test_google_callback_no_email(client: AsyncClient):
     """POST /auth/google/callback returns 400 when id_token has no email."""
     state = await _inject_state("no-email-state")
-    mock_tokens = {"id_token": "fake", "refresh_token": "ref"}
+    mock_tokens = {"id_token": "fake", "refresh_token": "ref", "granted_scopes": _READ_SCOPES}
     with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
          patch("app.api.auth.google_id_token.verify_oauth2_token", return_value={"sub": "123"}):
         resp = await client.post(
@@ -169,7 +173,7 @@ async def test_google_callback_no_email(client: AsyncClient):
 async def test_google_callback_new_user(client: AsyncClient):
     """POST /auth/google/callback creates a new user when email not found."""
     state = await _inject_state("new-user-state")
-    mock_tokens = {"id_token": "fake", "refresh_token": "ref"}
+    mock_tokens = {"id_token": "fake", "refresh_token": "ref", "granted_scopes": _READ_SCOPES}
     id_info = {"email": "google@example.com", "name": "Google User", "sub": "123"}
     with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
          patch("app.api.auth.google_id_token.verify_oauth2_token", return_value=id_info):
@@ -193,7 +197,7 @@ async def test_google_callback_existing_user(client: AsyncClient):
     })
 
     state = await _inject_state("existing-user-state")
-    mock_tokens = {"id_token": "fake", "refresh_token": "new_refresh"}
+    mock_tokens = {"id_token": "fake", "refresh_token": "new_refresh", "granted_scopes": _READ_SCOPES}
     id_info = {"email": "existing@example.com", "name": "Existing", "sub": "456"}
     with patch("app.api.auth.exchange_code", return_value=mock_tokens), \
          patch("app.api.auth.google_id_token.verify_oauth2_token", return_value=id_info):
@@ -203,3 +207,35 @@ async def test_google_callback_existing_user(client: AsyncClient):
         )
     assert resp.status_code == 200
     assert "access_token" in resp.json()["data"]
+
+
+@pytest.mark.asyncio
+async def test_connecting_second_google_account_keeps_crm_caller(client, db, test_user, auth_headers):
+    from sqlalchemy import select, func
+    from app.models.google_account import GoogleAccount
+    from app.models.user import User
+    from app.api.auth import _store_google_state
+
+    await _store_google_state("second-google-account", str(test_user.id), write_contacts=True)
+    tokens = {
+        "id_token": "fake", "refresh_token": "second-refresh",
+        "granted_scopes": [
+            "https://www.googleapis.com/auth/contacts",
+            "https://www.googleapis.com/auth/calendar.readonly",
+        ],
+    }
+    id_info = {"email": "second-google@example.com", "name": "Second Google", "sub": "second-sub"}
+    with patch("app.api.auth.exchange_code", return_value=tokens), \
+         patch("app.api.auth.google_id_token.verify_oauth2_token", return_value=id_info):
+        response = await client.post(
+            "/api/v1/auth/google/callback",
+            json={"code": "valid-code", "state": "second-google-account"},
+            headers=auth_headers,
+        )
+
+    assert response.status_code == 200
+    assert await db.scalar(select(func.count()).select_from(User)) == 1
+    account = await db.scalar(select(GoogleAccount).where(GoogleAccount.email == "second-google@example.com"))
+    assert account is not None
+    assert account.user_id == test_user.id
+    assert set(account.granted_scopes) == set(tokens["granted_scopes"])

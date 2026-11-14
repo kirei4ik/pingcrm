@@ -95,6 +95,9 @@ async def sync_gmail(
 
     Returns immediately. A notification is created when sync completes.
     """
+    from app.core.config import settings
+    if not settings.GOOGLE_GMAIL_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gmail integration is disabled")
     if not current_user.google_refresh_token:
         from app.models.google_account import GoogleAccount
         ga_result = await db.execute(
@@ -248,6 +251,9 @@ async def sync_contact_emails(
 
     Rate-limited to once per hour per contact (unless force=true).
     """
+    from app.core.config import settings
+    if not settings.GOOGLE_GMAIL_ENABLED:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gmail integration is disabled")
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
     )

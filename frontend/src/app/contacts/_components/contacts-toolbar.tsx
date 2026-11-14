@@ -2,14 +2,15 @@
 
 import type { RefObject } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   Search,
   X,
   SlidersHorizontal,
-  Mail,
   MessageCircle,
   Twitter,
 } from "lucide-react";
+import { client } from "@/lib/api-client";
 
 // ---------------------------------------------------------------------------
 // Constants (co-located so toolbar is self-contained)
@@ -50,6 +51,7 @@ export type ContactsToolbarProps = {
   ghostedFilter: boolean;
   // Expanded filter panel
   tagFilter: string;
+  googleLabelFilter: string;
   sourceFilter: string;
   interactionFrom: string;
   interactionTo: string;
@@ -78,6 +80,7 @@ export function ContactsToolbar({
   priorityFilter,
   ghostedFilter,
   tagFilter,
+  googleLabelFilter,
   sourceFilter,
   interactionFrom,
   interactionTo,
@@ -90,6 +93,21 @@ export function ContactsToolbar({
   meta,
 }: ContactsToolbarProps) {
   const router = useRouter();
+  const googleLabelsQuery = useQuery({
+    queryKey: ["google-contact-labels"],
+    queryFn: async () => {
+      try {
+        const { data, error } = await client.GET("/api/v1/contacts/google-labels");
+        if (error || !data?.data) throw new Error("Google Contacts labels request failed");
+        return data.data;
+      } catch (error: unknown) {
+        console.error("Could not load Google Contacts labels", error);
+        throw error;
+      }
+    },
+    staleTime: 5 * 60 * 1000,
+    enabled: showFilters,
+  });
 
   return (
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-4 mb-4">
@@ -202,7 +220,6 @@ export function ContactsToolbar({
               <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Platform</label>
               <div className="space-y-2">
                 {[
-                  { value: "gmail", label: "Gmail", icon: <Mail className="w-3.5 h-3.5 text-red-400" /> },
                   { value: "telegram", label: "Telegram", icon: <MessageCircle className="w-3.5 h-3.5 text-sky-500" /> },
                   { value: "twitter", label: "Twitter / X", icon: <Twitter className="w-3.5 h-3.5 text-stone-500 dark:text-stone-400" /> },
                 ].map(({ value, label, icon }) => (
@@ -243,6 +260,16 @@ export function ContactsToolbar({
                   </span>
                 </div>
               )}
+            </div>
+
+            {/* Google Contacts labels filter */}
+            <div>
+              <label htmlFor="google-label-filter" className="mb-2 block text-[11px] font-semibold uppercase tracking-wider text-stone-500 dark:text-stone-400">Google Contacts label</label>
+              <select id="google-label-filter" aria-label="Google Contacts label" value={googleLabelFilter} onChange={(e) => setParams({ google_label: e.target.value || undefined })} className="w-full rounded-md border border-stone-200 bg-white px-2.5 py-2 text-xs text-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400 dark:border-stone-700 dark:bg-stone-900 dark:text-stone-100">
+                <option value="">All Google labels</option>
+                {(googleLabelsQuery.data ?? []).map((label) => <option key={label.id} value={label.id}>{label.name} · {label.account_email}</option>)}
+              </select>
+              {googleLabelsQuery.isError && <p role="status" className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">Google labels could not be loaded.</p>}
             </div>
 
             {/* Last Contact — date presets + range */}

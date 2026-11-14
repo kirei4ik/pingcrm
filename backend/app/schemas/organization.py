@@ -85,3 +85,18 @@ class OrgStatsResponse(BaseModel):
     avg_relationship_score: int = 0
     total_interactions: int = 0
     last_interaction_at: datetime | None = None
+
+
+class CompanyBackfillGroup(BaseModel):
+    name: str
+    contact_ids: list[str]
+    organization_id: str | None = None
+    organization_name: str | None = None
+
+
+class CompanyBackfillRequest(BaseModel):
+    reviewed_groups: list[CompanyBackfillGroup]
+
+
+class CompanyBackfillResult(BaseModel):
+    contacts_linked: int

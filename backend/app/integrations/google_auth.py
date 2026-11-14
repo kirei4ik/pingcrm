@@ -8,15 +8,15 @@ from google_auth_oauthlib.flow import Flow
 
 from app.core.config import settings
 
-SCOPES = [
+BASE_SCOPES = [
     "openid",
     "https://www.googleapis.com/auth/userinfo.email",
     "https://www.googleapis.com/auth/userinfo.profile",
     "https://www.googleapis.com/auth/contacts.readonly",
-    "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/calendar.readonly",
-    "https://www.googleapis.com/auth/gmail.send",
 ]
+CONTACTS_WRITE_SCOPE = "https://www.googleapis.com/auth/contacts"
+CONTACTS_READ_SCOPE = "https://www.googleapis.com/auth/contacts.readonly"
 
 _CLIENT_CONFIG = {
     "web": {
@@ -29,9 +29,10 @@ _CLIENT_CONFIG = {
 }
 
 
-def build_oauth_url(redirect_uri: str | None = None) -> tuple[str, str]:
+def build_oauth_url(redirect_uri: str | None = None, write_contacts: bool = False) -> tuple[str, str]:
     """Return (authorization_url, state) for the Google consent screen."""
-    flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=SCOPES)
+    scopes = [*BASE_SCOPES, CONTACTS_WRITE_SCOPE if write_contacts else CONTACTS_READ_SCOPE]
+    flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=scopes)
     flow.redirect_uri = redirect_uri or settings.GOOGLE_REDIRECT_URI
     authorization_url, state = flow.authorization_url(
         access_type="offline",
@@ -41,12 +42,13 @@ def build_oauth_url(redirect_uri: str | None = None) -> tuple[str, str]:
     return authorization_url, state
 
 
-def exchange_code(code: str, redirect_uri: str | None = None) -> dict[str, Any]:
+def exchange_code(code: str, redirect_uri: str | None = None, write_contacts: bool = False) -> dict[str, Any]:
     """Exchange an authorization code for OAuth tokens.
 
     Returns a dict with keys: access_token, refresh_token, id_token, expiry.
     """
-    flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=SCOPES)
+    scopes = [*BASE_SCOPES, CONTACTS_WRITE_SCOPE if write_contacts else CONTACTS_READ_SCOPE]
+    flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=scopes)
     flow.redirect_uri = redirect_uri or settings.GOOGLE_REDIRECT_URI
     flow.fetch_token(code=code)
     credentials: Credentials = flow.credentials
@@ -55,6 +57,7 @@ def exchange_code(code: str, redirect_uri: str | None = None) -> dict[str, Any]:
         "refresh_token": credentials.refresh_token,
         "id_token": credentials.id_token,
         "expiry": credentials.expiry,
+        "granted_scopes": list(credentials.granted_scopes or []),
     }
 
 

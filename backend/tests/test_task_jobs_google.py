@@ -26,6 +26,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
 from app.models.google_account import GoogleAccount
+from app.models.google_contact_link import GoogleContactLink
+from app.models.organization import Organization
 from app.models.notification import Notification
 from app.models.user import User
 from app.services.task_jobs.google import (
@@ -159,6 +161,87 @@ async def test_uses_google_account_rows_when_present(
 
 
 @pytest.mark.asyncio
+async def test_account_scoped_repeat_import_keeps_provenance_and_links_company(
+    db: AsyncSession, test_user: User
+):
+    account = GoogleAccount(user_id=test_user.id, email="contacts@example.com", refresh_token="encrypted-refresh")
+    db.add(account)
+    await db.flush()
+    payload = _gc_fields(
+        resource_name="people/account-scoped-1",
+        emails=["repeat@example.com"],
+        company="Northwind",
+        labels=[{"resource_name": "contactGroups/1", "name": "VIP"}],
+        etag="etag-1",
+        snapshot={"userDefined": [{"key": "crm-note", "value": "preserve me"}]},
+    )
+    with (
+        patch("app.services.task_jobs.google.refresh_access_token", return_value="a"),
+        patch("app.services.task_jobs.google.fetch_google_contacts", return_value=[payload]),
+    ):
+        await _sync_google_contacts(db, test_user.id)
+        await _sync_google_contacts(db, test_user.id)
+
+    contact_result = await db.execute(select(Contact).where(Contact.user_id == test_user.id))
+    contacts = list(contact_result.scalars().all())
+    assert len(contacts) == 1
+    assert contacts[0].organization_id is not None
+    links_result = await db.execute(select(GoogleContactLink).where(GoogleContactLink.google_account_id == account.id))
+    links = list(links_result.scalars().all())
+    assert len(links) == 1
+    assert links[0].contact_id == contacts[0].id
+    assert links[0].etag == "etag-1"
+    assert links[0].labels == [{"resource_name": "contactGroups/1", "name": "VIP"}]
+    assert links[0].snapshot["userDefined"][0]["value"] == "preserve me"
+    org_result = await db.execute(select(Organization).where(Organization.user_id == test_user.id))
+    assert len(list(org_result.scalars().all())) == 1
+
+
+@pytest.mark.asyncio
+async def test_google_import_respects_user_edited_fields(db: AsyncSession, test_user: User):
+    test_user.google_refresh_token = "legacy-refresh"
+    contact = Contact(
+        user_id=test_user.id, full_name="Manual Name", company="Manual Company",
+        emails=["manual@example.com"], user_edited_fields=["full_name", "company"],
+    )
+    db.add(contact)
+    await db.commit()
+    payload = _gc_fields(full_name="Google Name", company="Google Company", emails=["manual@example.com"])
+    with (
+        patch("app.services.task_jobs.google.refresh_access_token", return_value="a"),
+        patch("app.services.task_jobs.google.fetch_google_contacts", return_value=[payload]),
+    ):
+        await _sync_google_contacts(db, test_user.id)
+    await db.refresh(contact)
+    assert contact.full_name == "Manual Name"
+    assert contact.company == "Manual Company"
+
+
+@pytest.mark.asyncio
+async def test_multi_account_legacy_resource_without_email_is_left_unresolved(
+    db: AsyncSession, test_user: User,
+):
+    resource_name = "people/legacy-ambiguous"
+    legacy = Contact(user_id=test_user.id, full_name="Old Contact", google_resource_name=resource_name)
+    db.add_all([
+        GoogleAccount(user_id=test_user.id, email="one@example.com", refresh_token="one"),
+        GoogleAccount(user_id=test_user.id, email="two@example.com", refresh_token="two"),
+        legacy,
+    ])
+    await db.commit()
+    payload = _gc_fields(resource_name=resource_name, emails=[], full_name="Old Contact")
+    with (
+        patch("app.services.task_jobs.google.refresh_access_token", return_value="a"),
+        patch("app.services.task_jobs.google.fetch_google_contacts", return_value=[payload]),
+    ):
+        result = await _sync_google_contacts(db, test_user.id)
+    assert result["created"] == 0
+    assert result["errors"] == 2
+    links = await db.execute(select(GoogleContactLink).where(GoogleContactLink.resource_name == resource_name))
+    assert list(links.scalars().all()) == []
+
+
+@pytest.mark.asyncio
 async def test_merges_existing_contact_by_resource_name(
     db: AsyncSession, test_user: User
 ):
@@ -211,7 +294,7 @@ async def test_merges_existing_contact_by_resource_name(
 
 
 @pytest.mark.asyncio
-async def test_does_not_overwrite_populated_fields_on_merge(
+async def test_verified_legacy_resource_refreshes_source_owned_fields(
     db: AsyncSession, test_user: User
 ):
     test_user.google_refresh_token = "tok"
@@ -248,9 +331,84 @@ async def test_does_not_overwrite_populated_fields_on_merge(
         await _sync_google_contacts(db, test_user.id)
 
     await db.refresh(existing)
-    assert existing.full_name == "Kept Name"
-    assert existing.company == "Existing Co"
-    assert existing.title == "Existing Title"
+    assert existing.full_name == "Other Name"
+    assert existing.company == "Other Co"
+    assert existing.title == "Other Title"
+
+
+@pytest.mark.asyncio
+async def test_primary_link_refreshes_only_fields_that_still_match_its_snapshot(
+    db: AsyncSession, test_user: User,
+):
+    account = GoogleAccount(
+        user_id=test_user.id, email="primary@example.com", refresh_token="primary",
+        created_at=datetime.now(UTC) - timedelta(days=1),
+    )
+    db.add(account)
+    await db.flush()
+    snapshot = {
+        "names": [{"displayName": "Original Name", "givenName": "Original", "familyName": "Name"}],
+        "organizations": [{"name": "Original Co", "title": "Engineer"}],
+    }
+    contact = Contact(
+        user_id=test_user.id, full_name="Manually Changed Name", given_name="Original",
+        family_name="Name", emails=["owned@example.com"], company="Original Co",
+        title="Engineer", user_edited_fields=["full_name"],
+    )
+    db.add(contact)
+    await db.flush()
+    db.add(GoogleContactLink(
+        contact_id=contact.id, google_account_id=account.id,
+        resource_name="people/primary-owned", etag="old-contact-etag", snapshot=snapshot, labels=[],
+    ))
+    await db.commit()
+    payload = _gc_fields(
+        resource_name="people/primary-owned", emails=["owned@example.com"],
+        full_name="Updated Google Name", given_name="Updated", family_name="Name",
+        company="Updated Co", title="Senior Engineer",
+        snapshot={"names": [{"displayName": "Original Name", "givenName": "Original", "familyName": "Name"}],
+                  "organizations": [{"name": "Original Co", "title": "Engineer"}]},
+    )
+    with (
+        patch("app.services.task_jobs.google.refresh_access_token", return_value="a"),
+        patch("app.services.task_jobs.google.fetch_google_contacts", return_value=[payload]),
+    ):
+        await _sync_google_contacts(db, test_user.id)
+    await db.refresh(contact)
+    assert contact.full_name == "Manually Changed Name"
+    assert contact.given_name == "Updated"
+    assert contact.company == "Updated Co"
+    assert contact.title == "Senior Engineer"
+
+    # A second account may contribute its own source snapshot and additive
+    # data, but cannot replace scalar values owned by the first linked account.
+    secondary = GoogleAccount(
+        user_id=test_user.id, email="secondary@example.com", refresh_token="secondary",
+        created_at=datetime.now(UTC),
+    )
+    db.add(secondary)
+    await db.commit()
+    conflicting_payload = _gc_fields(
+        resource_name="people/secondary-owned", emails=["owned@example.com"],
+        full_name="Different Account Name", given_name="Different", family_name="Account",
+        company="Different Co", title="Different Role",
+        snapshot={"names": [{"displayName": "Different Account Name", "givenName": "Different", "familyName": "Account"}],
+                  "organizations": [{"name": "Different Co", "title": "Different Role"}]},
+    )
+    with (
+        patch("app.services.task_jobs.google.refresh_access_token", side_effect=lambda token: token),
+        patch(
+            "app.services.task_jobs.google.fetch_google_contacts",
+            side_effect=lambda token: [conflicting_payload] if token == "secondary" else [],
+        ),
+    ):
+        await _sync_google_contacts(db, test_user.id)
+    await db.refresh(contact)
+    assert contact.full_name == "Manually Changed Name"
+    assert contact.given_name == "Updated"
+    assert contact.family_name == "Name"
+    assert contact.company == "Updated Co"
+    assert contact.title == "Senior Engineer"
 
 
 @pytest.mark.asyncio
@@ -293,7 +451,7 @@ async def test_merges_existing_contact_by_email_when_no_resource_match(
 
 
 @pytest.mark.asyncio
-async def test_archives_contacts_missing_from_google(
+async def test_does_not_archive_contacts_missing_from_google(
     db: AsyncSession, test_user: User
 ):
     test_user.google_refresh_token = "tok"
@@ -324,10 +482,10 @@ async def test_archives_contacts_missing_from_google(
     ):
         result = await _sync_google_contacts(db, test_user.id)
 
-    assert result["archived"] == 1
+    assert result["archived"] == 0
     await db.refresh(deleted_in_google)
     await db.refresh(still_present)
-    assert deleted_in_google.priority_level == "archived"
+    assert deleted_in_google.priority_level != "archived"
     assert still_present.priority_level == "medium"
 
 
@@ -363,11 +521,10 @@ async def test_no_archival_when_fetch_returns_nothing(
 
 
 @pytest.mark.asyncio
-async def test_name_org_pipe_pattern_splits_company(
+async def test_google_full_name_is_never_guessed_to_contain_company(
     db: AsyncSession, test_user: User
 ):
-    """"Name | Company" gets parsed into a separate company field; existing
-    behavior leaves the raw combined string in full_name on new inserts."""
+    """Authoritative Google names are not heuristically split on punctuation."""
     test_user.google_refresh_token = "tok"
     payload = _gc_fields(
         full_name="Dana Brown | Brownworks",
@@ -387,10 +544,8 @@ async def test_name_org_pipe_pattern_splits_company(
 
     r = await db.execute(select(Contact).where(Contact.user_id == test_user.id))
     contact = r.scalar_one()
-    # Existing behavior: raw_name (pre-split) flows into full_name on insert.
-    # Codifying it so future refactors don't silently change this.
     assert contact.full_name == "Dana Brown | Brownworks"
-    assert contact.company == "Brownworks"
+    assert contact.company is None
 
 
 # ---------------------------------------------------------------------------
@@ -789,6 +944,16 @@ async def test_collect_user_ids_returns_only_users_with_refresh_token(
     ids = await _collect_google_calendar_user_ids(db)
     assert str(with_token.id) in ids
     assert str(test_user.id) not in ids
+
+
+@pytest.mark.asyncio
+async def test_calendar_schedule_includes_account_only_users_once(db, test_user):
+    db.add_all([
+        GoogleAccount(user_id=test_user.id, email="first@example.com", refresh_token="first"),
+        GoogleAccount(user_id=test_user.id, email="second@example.com", refresh_token="second"),
+    ])
+    await db.flush()
+    assert await _collect_google_calendar_user_ids(db) == [str(test_user.id)]
 
 
 # ---------------------------------------------------------------------------

@@ -20,6 +20,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from celery.exceptions import Retry
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.config import settings
 
 from app.models.google_account import GoogleAccount
 from app.models.notification import Notification
@@ -28,6 +29,22 @@ from app.services.task_jobs.meeting_prep import (
     _scan_meeting_preps,
     scan_meeting_preps,
 )
+
+
+@pytest.fixture(autouse=True)
+def _enable_gmail_for_legacy_send_tests(monkeypatch):
+    monkeypatch.setattr(settings, "GOOGLE_GMAIL_ENABLED", True)
+
+
+@pytest.mark.asyncio
+async def test_disabled_gmail_never_reads_calendar_or_sends_email(db, monkeypatch):
+    monkeypatch.setattr(settings, "GOOGLE_GMAIL_ENABLED", False)
+    with patch("app.services.task_jobs.meeting_prep.get_upcoming_meetings") as calendar, patch(
+        "app.services.task_jobs.meeting_prep.send_email"
+    ) as send:
+        assert await _scan_meeting_preps(db, MagicMock()) == {"sent": 0, "skipped": 0, "errors": 0}
+    calendar.assert_not_called()
+    send.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
